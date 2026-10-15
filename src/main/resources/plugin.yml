@@ -1,0 +1,7 @@
+name: Create-Railways-Dynmap-Bridge
+version: 1.0.0.1
+main: com.igrobar.createdynmap.CreateRailwaysDynmapBridge
+api-version: '1.21'
+softdepend: [dynmap]
+author: igrobar
+description: Publishes Create railway stations and trains to Dynmap with automatic world detection and configurable world mappings.

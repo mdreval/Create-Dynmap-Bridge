@@ -1,0 +1,100 @@
+# Create-Railways-Dynmap-Bridge 1.0.0.1
+# Выбирай ID иконок из списка ниже. Изменения применяются после перезапуска сервера.
+
+# Иконка станций
+station-icon: "bank"
+
+# Иконка поездов
+train-icon: "bricks"
+
+# Доступные встроенные иконки Dynmap
+# anchor
+# bank
+# basket
+# bed
+# beer
+# bighouse
+# blueflag
+# bomb
+# bookshelf
+# bricks
+# bronzemedal
+# bronzestar
+# building
+# cake
+# camera
+# cart
+# caution
+# chest
+# church
+# coins
+# comment
+# compass
+# construction
+# cross
+# cup
+# cutlery
+# default
+# diamond
+# dog
+# door
+# down
+# drink
+# exclamation
+# factory
+# fire
+# flower
+# gear
+# goldmedal
+# goldstar
+# greenflag
+# hammer
+# heart
+# house
+# key
+# king
+# left
+# lightbulb
+# lighthouse
+# lock
+# minecart
+# offlineuser
+# orangeflag
+# pin
+# pinkflag
+# pirateflag
+# pointdown
+# pointleft
+# pointright
+# pointup
+# portal
+# purpleflag
+# queen
+# redflag
+# right
+# ruby
+# scales
+# shield
+# sign
+# silvermedal
+# silverstar
+# skull
+# star
+# sun
+# temple
+# theater
+# tornado
+# tower
+# tree
+# truck
+# up
+# walk
+# warning
+# world
+# wrench
+
+# Сопоставления добавляются автоматически, когда мост обнаруживает измерения Create.
+# Обычно этот раздел вручную заполнять не нужно.
+# Если автопоиск выберет неверный мир, можно задать переопределение вручную.
+# Пример: minecraft/overworld: survival
+worlds:

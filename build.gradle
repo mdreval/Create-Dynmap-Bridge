@@ -1,0 +1,37 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.igrobar'
+version = '1.0.0.1'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+}
+
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT'
+}
+
+processResources {
+    filteringCharset = 'UTF-8'
+}
+
+jar {
+    archiveBaseName = 'Create-Railways-Dynmap-Bridge'
+    manifest {
+        attributes('Implementation-Title': 'Create-Railways-Dynmap-Bridge', 'Implementation-Version': project.version)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
