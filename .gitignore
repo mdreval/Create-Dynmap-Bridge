@@ -4,3 +4,6 @@ out/
 *.class
 .idea/
 *.iml
+.code-workspace
+bin/
+*.rar

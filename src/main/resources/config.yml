@@ -1,13 +1,13 @@
-# Create-Railways-Dynmap-Bridge 1.0.0.1
-# Выбирай ID иконок из списка ниже. Изменения применяются после перезапуска сервера.
+# Create-Railways-Dynmap-Bridge 1.0.0.2
+# Choose icon IDs from the list below. Changes take effect after restarting the server.
 
-# Иконка станций
+# Station icon
 station-icon: "bank"
 
-# Иконка поездов
+# Train icon
 train-icon: "bricks"
 
-# Доступные встроенные иконки Dynmap
+# Available built-in Dynmap icons
 # anchor
 # bank
 # basket
@@ -93,8 +93,8 @@ train-icon: "bricks"
 # world
 # wrench
 
-# Сопоставления добавляются автоматически, когда мост обнаруживает измерения Create.
-# Обычно этот раздел вручную заполнять не нужно.
-# Если автопоиск выберет неверный мир, можно задать переопределение вручную.
-# Пример: minecraft/overworld: survival
+# Mappings are added automatically when the bridge detects Create dimensions.
+# Usually, this section does not need to be filled out manually.
+# If auto-detection picks the wrong world, you can set an override manually.
+# Example: minecraft/overworld: survival
 worlds:

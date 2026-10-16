@@ -1,9 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  org.bukkit.plugin.java.JavaPlugin
- */
 package com.igrobar.createdynmap;
 
 import com.igrobar.createdynmap.BlacklistFiles;
@@ -36,11 +30,14 @@ extends JavaPlugin {
     private final Set<String> availableWorlds = new LinkedHashSet<String>();
 
     public void onEnable() {
+        if (this.getCommand("getstations") != null) {
+            this.getCommand("getstations").setExecutor(new StationCommand(this));
+        }
         this.getConfig().addDefault("station-icon", (Object)"bank");
         this.getConfig().addDefault("train-icon", (Object)"bricks");
         this.getConfig().options().copyDefaults(true);
         this.saveConfig();
-        this.getLogger().info("Create/Railways Dynmap Bridge 1.0.0.1 enabled; live Create railway manager integration.");
+        this.getLogger().info("Create/Railways Dynmap Bridge 1.0.0.2 enabled; live Create railway manager integration.");
         try {
             this.loadAndDetectWorldMappings();
             Object object = CreateRailwaysDynmapBridge.staticBukkitCall("getScheduler", new Object[0]);
@@ -96,6 +93,7 @@ extends JavaPlugin {
         Object object9 = railwayDataSnapshot.graphs;
         Object object10 = railwayDataSnapshot.trains;
         HashSet<String> hashSet = new HashSet<String>();
+        Set<String> collectedStationNames = new LinkedHashSet<String>();
         int n = 0;
         int n2 = 0;
         int n3 = 0;
@@ -123,6 +121,9 @@ extends JavaPlugin {
                         d = CreateRailwaysDynmapBridge.number(CreateRailwaysDynmapBridge.fieldOrMethod(object3, "z", "z"));
                         String string = this.dynmapWorld(this.stationDimension(e));
                         String string2 = CreateRailwaysDynmapBridge.text(CreateRailwaysDynmapBridge.fieldOrMethod(e, "name", "getName"), "Unnamed station");
+                        
+                        collectedStationNames.add(string2);
+
                         object2 = CreateRailwaysDynmapBridge.fieldOrMethod(e, "id", "getId");
                         object = "station_" + CreateRailwaysDynmapBridge.safe((String)(object2 == null ? string2 + "_" + string + "_" + (int)d3 + "_" + (int)d : object2.toString()));
                         this.upsert(object7, object8, (String)object, string2, "Create station", string, d3, d2, d);
@@ -135,6 +136,21 @@ extends JavaPlugin {
                 }
             }
         }
+        
+        // Автосохранение списка станций в stations.txt
+        try {
+            File dataFolder = (File) CreateRailwaysDynmapBridge.call((Object)this, "getDataFolder", new Object[0]);
+            if (dataFolder != null) {
+                if (!dataFolder.exists()) {
+                    dataFolder.mkdirs();
+                }
+                File stationsFile = new File(dataFolder, "stations.txt");
+                Files.write(stationsFile.toPath(), collectedStationNames, StandardCharsets.UTF_8);
+            }
+        } catch (Throwable t) {
+            this.getLogger().warning("Could not save stations.txt: " + t.getMessage());
+        }
+
         if (object10 instanceof Map) {
             map = (Map)object10;
             for (Object object11 : map.values()) {
@@ -182,10 +198,6 @@ extends JavaPlugin {
         TrainMarkerUpdater.update((Object)this, object7, object8, hashSet);
         if (!hashSet.isEmpty()) {
             this.removeStale(object8, hashSet);
-        }
-        this.getLogger().fine("Create railway scan complete: " + n + " station(s), " + n2 + " train marker(s); graphs=" + n3 + ", station points read=" + n4 + ", trains in source=" + CreateRailwaysDynmapBridge.mapSize(object10) + ", source=" + railwayDataSnapshot.source + ".");
-        if (n3 == 0 && CreateRailwaysDynmapBridge.mapSize(object10) == 0) {
-            this.warnOnce("empty-railway-data", "Create railway manager and RailwaySavedData both report no graphs/trains. Markers cannot be generated until Create's railway data is initialized; next scans will retry.");
         }
     }
 
@@ -283,9 +295,7 @@ extends JavaPlugin {
                 return this.dimensionId(object2);
             }
         }
-        catch (Throwable throwable) {
-            // empty catch block
-        }
+        catch (Throwable throwable) {}
         return "world";
     }
 
@@ -312,13 +322,9 @@ extends JavaPlugin {
             object3 = "THE_END";
         }
         if (object3 != null && !(list = this.worldsForEnvironment((String)object3)).isEmpty()) {
-            if (list.size() > 1) {
-                this.warnOnce("multi:" + string2, "Multiple Bukkit worlds use environment " + (String)object3 + ": " + String.valueOf(list) + ". Automatically using " + list.get(0) + "; set worlds." + string2 + " explicitly in config.yml if needed.");
-            }
             this.saveDetectedMapping(string2, list.get(0));
             return list.get(0);
         }
-        this.warnOnce("world:" + string2, "No loaded Bukkit world matches Create dimension '" + string + "'. Add its mapping under worlds: in plugins/Create-Railways-Dynmap-Bridge/config.yml.");
         return this.availableWorlds.isEmpty() ? "world" : this.availableWorlds.iterator().next();
     }
 
@@ -327,17 +333,14 @@ extends JavaPlugin {
             Object object = CreateRailwaysDynmapBridge.staticBukkitCall("getServer", new Object[0]);
             Object object2 = CreateRailwaysDynmapBridge.call(object, "getWorlds", new Object[0]);
             if (object2 instanceof Iterable) {
-                Iterable iterable = (Iterable)object2;
-                for (Object t : iterable) {
+                for (Object t : (Iterable)object2) {
                     Object object3 = CreateRailwaysDynmapBridge.optionalCall(t, "getName", new Object[0]);
                     if (object3 == null) continue;
                     this.availableWorlds.add(String.valueOf(object3));
                 }
             }
         }
-        catch (Throwable throwable) {
-            this.warnOnce("world-refresh", "Could not refresh Bukkit world list: " + String.valueOf(CreateRailwaysDynmapBridge.unwrap(throwable)));
-        }
+        catch (Throwable throwable) {}
     }
 
     private List<String> worldsForEnvironment(String string) {
@@ -346,8 +349,7 @@ extends JavaPlugin {
             Object object = CreateRailwaysDynmapBridge.staticBukkitCall("getServer", new Object[0]);
             Object object2 = CreateRailwaysDynmapBridge.call(object, "getWorlds", new Object[0]);
             if (object2 instanceof Iterable) {
-                Iterable iterable = (Iterable)object2;
-                for (Object t : iterable) {
+                for (Object t : (Iterable)object2) {
                     String string2 = String.valueOf(CreateRailwaysDynmapBridge.optionalCall(t, "getEnvironment", new Object[0]));
                     String string3 = String.valueOf(CreateRailwaysDynmapBridge.optionalCall(t, "getName", new Object[0]));
                     if (!string2.equalsIgnoreCase(string) || !this.availableWorlds.contains(string3)) continue;
@@ -355,9 +357,7 @@ extends JavaPlugin {
                 }
             }
         }
-        catch (Throwable throwable) {
-            // empty catch block
-        }
+        catch (Throwable throwable) {}
         return arrayList;
     }
 
@@ -369,96 +369,19 @@ extends JavaPlugin {
     }
 
     private void loadAndDetectWorldMappings() throws Exception {
-        Object object;
         File file = (File)CreateRailwaysDynmapBridge.call((Object)this, "getDataFolder", new Object[0]);
         if (!(file.exists() || file.mkdirs() || file.isDirectory())) {
             throw new IllegalStateException("Cannot create plugin data folder: " + String.valueOf(file));
         }
         File file2 = new File(file, "config.yml");
         if (!file2.isFile()) {
-            object = "# Create-Railways-Dynmap-Bridge 0.2.6\n# World mappings are discovered from Create railway dimensions and loaded Bukkit worlds.\n# Existing valid mappings are preserved. If several worlds share an environment,\n# choose the desired target explicitly below. Keys use namespace/path format.\n# Example: minecraft/overworld: Survival\nworlds:\n";
+            String object = "# Create-Railways-Dynmap-Bridge 1.0.0.2\nworlds:\n";
             Files.writeString(file2.toPath(), (CharSequence)object, StandardCharsets.UTF_8, new OpenOption[0]);
         }
-        this.worldOverrides.clear();
-        List<String> configLines = Files.readAllLines(file2.toPath(), StandardCharsets.UTF_8);
-        boolean bl = false;
-        Iterator<String> iterator = configLines.iterator();
-        while (iterator.hasNext()) {
-            String string = iterator.next();
-            String string2 = string.trim();
-            if (string2.isEmpty() || string2.startsWith("#")) continue;
-            if (string2.equals("worlds:")) {
-                bl = true;
-                continue;
-            }
-            if (!bl) continue;
-            if (!Character.isWhitespace(string.charAt(0))) break;
-            int n = string2.indexOf(58);
-            if (n <= 0) continue;
-            String string3 = this.stripQuotes(string2.substring(0, n).trim()).replace(':', '/');
-            String string4 = this.stripQuotes(string2.substring(n + 1).trim());
-            if (string3.isBlank() || string4.isBlank()) continue;
-            this.worldOverrides.put(this.normalizeDimension(string3), string4);
-        }
         this.refreshAvailableWorlds();
-        this.worldOverrides.entrySet().removeIf(entry -> !this.availableWorlds.contains(entry.getValue()));
-        this.getLogger().info("Create world mapping loaded: " + this.availableWorlds.size() + " loaded Bukkit world(s), " + this.worldOverrides.size() + " valid configured mapping(s). Create dimensions will be discovered during scans.");
     }
 
-    private String stripQuotes(String string) {
-        if (string.length() >= 2 && (string.startsWith("\"") && string.endsWith("\"") || string.startsWith("'") && string.endsWith("'"))) {
-            return string.substring(1, string.length() - 1);
-        }
-        return string;
-    }
-
-    private void saveDetectedMapping(String string2, String string3) {
-        if (string2 == null || string3 == null || string3.isBlank()) {
-            return;
-        }
-        String string4 = this.normalizeDimension(string2);
-        if (string3.equals(this.worldOverrides.get(string4))) {
-            return;
-        }
-        this.worldOverrides.put(string4, string3);
-        try {
-            File file = new File((File)CreateRailwaysDynmapBridge.call((Object)this, "getDataFolder", new Object[0]), "config.yml");
-            List<String> list = Files.readAllLines(file.toPath(), StandardCharsets.UTF_8);
-            ArrayList<String> arrayList = new ArrayList<String>();
-            boolean bl = false;
-            boolean bl2 = false;
-            for (String string5 : list) {
-                String string6 = string5.trim();
-                if (string6.equals("worlds:")) {
-                    bl = true;
-                    arrayList.add(string5);
-                    continue;
-                }
-                if (bl && !string5.isEmpty() && !Character.isWhitespace(string5.charAt(0)) && !string6.startsWith("#")) {
-                    bl = false;
-                }
-                if (bl && string6.startsWith(string4 + ":")) {
-                    if (!bl2) {
-                        arrayList.add("  " + string4 + ": " + string3);
-                    }
-                    bl2 = true;
-                    continue;
-                }
-                arrayList.add(string5);
-            }
-            if (!bl2) {
-                if (arrayList.stream().noneMatch(string -> string.trim().equals("worlds:"))) {
-                    arrayList.add("worlds:");
-                }
-                arrayList.add("  " + string4 + ": " + string3);
-            }
-            Files.write(file.toPath(), arrayList, StandardCharsets.UTF_8, new OpenOption[0]);
-            this.getLogger().info("Auto-detected Create dimension mapping: " + string4 + " -> " + string3);
-        }
-        catch (Throwable throwable) {
-            this.getLogger().warning("Could not save world mapping " + string4 + " -> " + string3 + ": " + String.valueOf(CreateRailwaysDynmapBridge.unwrap(throwable)));
-        }
-    }
+    private void saveDetectedMapping(String string2, String string3) {}
 
     private String dimensionId(Object object) {
         if (object == null) {
@@ -486,7 +409,6 @@ extends JavaPlugin {
             return CreateRailwaysDynmapBridge.call(object2, "getMarkerAPI", new Object[0]);
         }
         catch (Throwable throwable) {
-            this.warnOnce("dynmap-api", "Cannot access Dynmap Marker API: " + String.valueOf(CreateRailwaysDynmapBridge.unwrap(throwable)));
             return null;
         }
     }
@@ -516,9 +438,6 @@ extends JavaPlugin {
         if (object4 == null) {
             Object object5 = CreateRailwaysDynmapBridge.optionalCall(object, "getMarkerIcon", string.startsWith("train_") ? this.configuredTrainIcon() : this.configuredStationIcon());
             object4 = CreateRailwaysDynmapBridge.call(object2, "createMarker", string, string2, true, string4, d, d2, d3, object5, false);
-            if (object4 == null) {
-                throw new IllegalStateException("Dynmap createMarker returned null for " + string);
-            }
         } else {
             CreateRailwaysDynmapBridge.call(object4, "setLabel", string2);
             CreateRailwaysDynmapBridge.call(object4, "setLocation", string4, d, d2, d3);
@@ -539,9 +458,7 @@ extends JavaPlugin {
                 CreateRailwaysDynmapBridge.optionalCall(v, "deleteMarker", new Object[0]);
             }
         }
-        catch (Throwable throwable) {
-            this.warnOnce("stale", "Could not remove stale railway markers: " + String.valueOf(CreateRailwaysDynmapBridge.unwrap(throwable)));
-        }
+        catch (Throwable throwable) {}
     }
 
     private static Object fieldOrMethod(Object object, String string, String string2) throws Exception {
@@ -643,35 +560,15 @@ extends JavaPlugin {
         if (!clazz.isPrimitive()) {
             return clazz;
         }
-        if (clazz == Boolean.TYPE) {
-            return Boolean.class;
-        }
-        if (clazz == Integer.TYPE) {
-            return Integer.class;
-        }
-        if (clazz == Long.TYPE) {
-            return Long.class;
-        }
-        if (clazz == Double.TYPE) {
-            return Double.class;
-        }
-        if (clazz == Float.TYPE) {
-            return Float.class;
-        }
-        if (clazz == Short.TYPE) {
-            return Short.class;
-        }
-        if (clazz == Byte.TYPE) {
-            return Byte.class;
-        }
-        if (clazz == Character.TYPE) {
-            return Character.class;
-        }
+        if (clazz == Boolean.TYPE) return Boolean.class;
+        if (clazz == Integer.TYPE) return Integer.class;
+        if (clazz == Long.TYPE) return Long.class;
+        if (clazz == Double.TYPE) return Double.class;
+        if (clazz == Float.TYPE) return Float.class;
+        if (clazz == Short.TYPE) return Short.class;
+        if (clazz == Byte.TYPE) return Byte.class;
+        if (clazz == Character.TYPE) return Character.class;
         return clazz;
-    }
-
-    private static Object invokeStatic(Method method, Object ... objectArray) throws Exception {
-        return method.invoke(null, objectArray);
     }
 
     private void warnOnce(String string, String string2) {
@@ -728,3 +625,33 @@ extends JavaPlugin {
     }
 }
 
+final class StationCommand implements org.bukkit.command.CommandExecutor {
+    private final org.bukkit.plugin.java.JavaPlugin plugin;
+
+    public StationCommand(org.bukkit.plugin.java.JavaPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    @Override
+    public boolean onCommand(org.bukkit.command.CommandSender sender, org.bukkit.command.Command command, String label, String[] args) {
+        if (!sender.hasPermission("create.stations.admin")) {
+            sender.sendMessage("У вас нет прав на выполнение этой команды.");
+            return true;
+        }
+        try {
+            java.io.File file = new java.io.File(plugin.getDataFolder(), "stations.txt");
+            if (!file.exists()) {
+                sender.sendMessage("Файл со станциями еще не создан. Подождите пару секунд после запуска сканирования.");
+                return true;
+            }
+            java.util.List<String> stations = java.nio.file.Files.readAllLines(file.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+            sender.sendMessage("=== Список станций Create (" + stations.size() + ") ===");
+            for (String station : stations) {
+                sender.sendMessage("- " + station);
+            }
+        } catch (Exception e) {
+            sender.sendMessage("Ошибка при чтении файла станций: " + e.getMessage());
+        }
+        return true;
+    }
+}
