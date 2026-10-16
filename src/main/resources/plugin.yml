@@ -1,5 +1,5 @@
 name: Create-Railways-Dynmap-Bridge
-version: 1.0.0.2
+version: 1.0.0.3
 main: com.igrobar.createdynmap.CreateRailwaysDynmapBridge
 api-version: '1.21'
 softdepend: [dynmap]
@@ -10,3 +10,7 @@ commands:
     description: Get a list of all Create stations or export them.
     permission: create.stations.admin
     usage: /getstations
+  gettrains:
+    description: Get a list of all Create trains or export them.
+    permission: create.stations.admin
+    usage: /gettrains

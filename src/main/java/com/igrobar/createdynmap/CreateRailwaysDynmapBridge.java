@@ -33,11 +33,14 @@ extends JavaPlugin {
         if (this.getCommand("getstations") != null) {
             this.getCommand("getstations").setExecutor(new StationCommand(this));
         }
+        if (this.getCommand("gettrains") != null) {
+            this.getCommand("gettrains").setExecutor(new TrainCommand(this));
+        }
         this.getConfig().addDefault("station-icon", (Object)"bank");
         this.getConfig().addDefault("train-icon", (Object)"bricks");
         this.getConfig().options().copyDefaults(true);
         this.saveConfig();
-        this.getLogger().info("Create/Railways Dynmap Bridge 1.0.0.2 enabled; live Create railway manager integration.");
+        this.getLogger().info("Create/Railways Dynmap Bridge 1.0.0.3 enabled; live Create railway manager integration.");
         try {
             this.loadAndDetectWorldMappings();
             Object object = CreateRailwaysDynmapBridge.staticBukkitCall("getScheduler", new Object[0]);
@@ -94,6 +97,7 @@ extends JavaPlugin {
         Object object10 = railwayDataSnapshot.trains;
         HashSet<String> hashSet = new HashSet<String>();
         Set<String> collectedStationNames = new LinkedHashSet<String>();
+        Set<String> collectedTrainNames = new LinkedHashSet<String>();
         int n = 0;
         int n2 = 0;
         int n3 = 0;
@@ -159,6 +163,9 @@ extends JavaPlugin {
                     Object object13 = CreateRailwaysDynmapBridge.fieldOrMethod(object11, "id", "getId");
                     object12 = CreateRailwaysDynmapBridge.fieldOrMethod(object11, "name", "getName");
                     object6 = CreateRailwaysDynmapBridge.componentText(object12, "Train");
+                    
+                    collectedTrainNames.add((String)object6);
+
                     object5 = CreateRailwaysDynmapBridge.fieldOrMethod(object11, "carriages", "getCarriages");
                     if (!(object5 instanceof Iterable)) continue;
                     Iterable<?> carriages = (Iterable<?>) object5;
@@ -195,6 +202,21 @@ extends JavaPlugin {
                 }
             }
         }
+
+        // Автосохранение списка поездов в trains.txt
+        try {
+            File dataFolder = (File) CreateRailwaysDynmapBridge.call((Object)this, "getDataFolder", new Object[0]);
+            if (dataFolder != null) {
+                if (!dataFolder.exists()) {
+                    dataFolder.mkdirs();
+                }
+                File trainsFile = new File(dataFolder, "trains.txt");
+                Files.write(trainsFile.toPath(), collectedTrainNames, StandardCharsets.UTF_8);
+            }
+        } catch (Throwable t) {
+            this.getLogger().warning("Could not save trains.txt: " + t.getMessage());
+        }
+
         TrainMarkerUpdater.update((Object)this, object7, object8, hashSet);
         if (!hashSet.isEmpty()) {
             this.removeStale(object8, hashSet);
@@ -375,7 +397,7 @@ extends JavaPlugin {
         }
         File file2 = new File(file, "config.yml");
         if (!file2.isFile()) {
-            String object = "# Create-Railways-Dynmap-Bridge 1.0.0.2\nworlds:\n";
+            String object = "# Create-Railways-Dynmap-Bridge 1.0.0.3\nworlds:\n";
             Files.writeString(file2.toPath(), (CharSequence)object, StandardCharsets.UTF_8, new OpenOption[0]);
         }
         this.refreshAvailableWorlds();
@@ -651,6 +673,37 @@ final class StationCommand implements org.bukkit.command.CommandExecutor {
             }
         } catch (Exception e) {
             sender.sendMessage("Ошибка при чтении файла станций: " + e.getMessage());
+        }
+        return true;
+    }
+}
+
+final class TrainCommand implements org.bukkit.command.CommandExecutor {
+    private final org.bukkit.plugin.java.JavaPlugin plugin;
+
+    public TrainCommand(org.bukkit.plugin.java.JavaPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    @Override
+    public boolean onCommand(org.bukkit.command.CommandSender sender, org.bukkit.command.Command command, String label, String[] args) {
+        if (!sender.hasPermission("create.stations.admin")) {
+            sender.sendMessage("У вас нет прав на выполнение этой команды.");
+            return true;
+        }
+        try {
+            java.io.File file = new java.io.File(plugin.getDataFolder(), "trains.txt");
+            if (!file.exists()) {
+                sender.sendMessage("Файл с поездами еще не создан. Подождите пару секунд после запуска сканирования.");
+                return true;
+            }
+            java.util.List<String> trains = java.nio.file.Files.readAllLines(file.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+            sender.sendMessage("=== Список поездов Create (" + trains.size() + ") ===");
+            for (String train : trains) {
+                sender.sendMessage("- " + train);
+            }
+        } catch (Exception e) {
+            sender.sendMessage("Ошибка при чтении файла поездов: " + e.getMessage());
         }
         return true;
     }
