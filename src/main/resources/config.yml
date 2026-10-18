@@ -1,4 +1,4 @@
-# Create-Railways-Dynmap-Bridge 1.0.0.2
+# Create Railways - Dynmap Bridge 1.0.0.4
 # Choose icon IDs from the list below. Changes take effect after restarting the server.
 
 # Station icon
@@ -7,91 +7,19 @@ station-icon: "bank"
 # Train icon
 train-icon: "bricks"
 
+# Export interval in seconds for stations.txt and trains.txt (default: 3600 = 1 hour)
+export-interval-seconds: 3600
+
 # Available built-in Dynmap icons
-# anchor
-# bank
-# basket
-# bed
-# beer
-# bighouse
-# blueflag
-# bomb
-# bookshelf
-# bricks
-# bronzemedal
-# bronzestar
-# building
-# cake
-# camera
-# cart
-# caution
-# chest
-# church
-# coins
-# comment
-# compass
-# construction
-# cross
-# cup
-# cutlery
-# default
-# diamond
-# dog
-# door
-# down
-# drink
-# exclamation
-# factory
-# fire
-# flower
-# gear
-# goldmedal
-# goldstar
-# greenflag
-# hammer
-# heart
-# house
-# key
-# king
-# left
-# lightbulb
-# lighthouse
-# lock
-# minecart
-# offlineuser
-# orangeflag
-# pin
-# pinkflag
-# pirateflag
-# pointdown
-# pointleft
-# pointright
-# pointup
-# portal
-# purpleflag
-# queen
-# redflag
-# right
-# ruby
-# scales
-# shield
-# sign
-# silvermedal
-# silverstar
-# skull
-# star
-# sun
-# temple
-# theater
-# tornado
-# tower
-# tree
-# truck
-# up
-# walk
-# warning
-# world
-# wrench
+# anchor, bank, basket, bed, beer, bighouse, blueflag, bomb, bookshelf, bricks,
+# bronzemedal, bronzestar, building, cake, camera, cart, caution, chest, church,
+# coins, comment, compass, construction, cross, cup, cutlery, default, diamond,
+# dog, door, down, drink, exclamation, factory, fire, flower, gear, goldmedal,
+# goldstar, greenflag, hammer, heart, house, key, king, left, lightbulb, lighthouse,
+# lock, minecart, offlineuser, orangeflag, pin, pinkflag, pirateflag, pointdown,
+# pointleft, pointright, pointup, portal, purpleflag, queen, redflag, right,
+# ruby, scales, shield, sign, silvermedal, silverstar, skull, star, sun, temple,
+# theater, tornado, tower, tree, truck, up, walk, warning, world, wrench
 
 # Mappings are added automatically when the bridge detects Create dimensions.
 # Usually, this section does not need to be filled out manually.

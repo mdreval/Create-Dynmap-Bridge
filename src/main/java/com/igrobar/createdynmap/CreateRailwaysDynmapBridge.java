@@ -9,7 +9,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.OpenOption;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -21,14 +20,14 @@ import java.util.Set;
 import java.util.logging.Level;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public final class CreateRailwaysDynmapBridge
-extends JavaPlugin {
+public final class CreateRailwaysDynmapBridge extends JavaPlugin {
     private static final String SET_ID = "create_railways";
     private volatile boolean stopping;
     private final Set<String> warned = new HashSet<String>();
     private final Map<String, String> worldOverrides = new LinkedHashMap<String, String>();
     private final Set<String> availableWorlds = new LinkedHashSet<String>();
 
+    @Override
     public void onEnable() {
         if (this.getCommand("getstations") != null) {
             this.getCommand("getstations").setExecutor(new StationCommand(this));
@@ -36,16 +35,23 @@ extends JavaPlugin {
         if (this.getCommand("gettrains") != null) {
             this.getCommand("gettrains").setExecutor(new TrainCommand(this));
         }
-        this.getConfig().addDefault("station-icon", (Object)"bank");
-        this.getConfig().addDefault("train-icon", (Object)"bricks");
-        this.getConfig().options().copyDefaults(true);
-        this.saveConfig();
-        this.getLogger().info("Create/Railways Dynmap Bridge 1.0.0.3 enabled; live Create railway manager integration.");
+
+        // Сохраняет файл config.yml из ресурсов .jar со ВСЕМИ комментариями, если его еще нет
+        this.saveDefaultConfig();
+
+        this.getLogger().info("Create Railways - Dynmap Bridge 1.0.0.4 enabled; live Create railway manager integration.");
         try {
             this.loadAndDetectWorldMappings();
-            Object object = CreateRailwaysDynmapBridge.staticBukkitCall("getScheduler", new Object[0]);
-            Method method = CreateRailwaysDynmapBridge.publicMethod(Class.forName("org.bukkit.scheduler.BukkitScheduler"), "runTaskTimer", 4);
-            method.invoke(object, new Object[]{this, (Runnable) this::safeScan, 100L, 20L});
+            Object scheduler = CreateRailwaysDynmapBridge.staticBukkitCall("getScheduler", new Object[0]);
+            Method runTaskTimerMethod = CreateRailwaysDynmapBridge.publicMethod(Class.forName("org.bukkit.scheduler.BukkitScheduler"), "runTaskTimer", 4);
+            
+            // 1. Быстрое сканирование для Dynmap (каждую секунду / 20 тиков)
+            runTaskTimerMethod.invoke(scheduler, new Object[]{this, (Runnable) this::safeScan, 100L, 20L});
+            
+            // 2. Фоновый экспорт stations.txt и trains.txt по интервалу из конфига (по умолчанию 3600 сек)
+            long intervalSeconds = this.getConfig().getLong("export-interval-seconds", 3600L);
+            long intervalTicks = Math.max(20L, intervalSeconds * 20L);
+            runTaskTimerMethod.invoke(scheduler, new Object[]{this, (Runnable) this::saveTxtFiles, 100L, intervalTicks});
         }
         catch (Throwable throwable) {
             this.getLogger().log(Level.SEVERE, "Could not schedule Create railway scan", CreateRailwaysDynmapBridge.unwrap(throwable));
@@ -53,6 +59,7 @@ extends JavaPlugin {
         }
     }
 
+    @Override
     public void onDisable() {
         this.stopping = true;
     }
@@ -75,7 +82,6 @@ extends JavaPlugin {
         double d;
         double d2;
         Object object3;
-        Object object4;
         Object object5;
         Object object6;
         Map map;
@@ -96,8 +102,6 @@ extends JavaPlugin {
         Object object9 = railwayDataSnapshot.graphs;
         Object object10 = railwayDataSnapshot.trains;
         HashSet<String> hashSet = new HashSet<String>();
-        Set<String> collectedStationNames = new LinkedHashSet<String>();
-        Set<String> collectedTrainNames = new LinkedHashSet<String>();
         int n = 0;
         int n2 = 0;
         int n3 = 0;
@@ -125,9 +129,6 @@ extends JavaPlugin {
                         d = CreateRailwaysDynmapBridge.number(CreateRailwaysDynmapBridge.fieldOrMethod(object3, "z", "z"));
                         String string = this.dynmapWorld(this.stationDimension(e));
                         String string2 = CreateRailwaysDynmapBridge.text(CreateRailwaysDynmapBridge.fieldOrMethod(e, "name", "getName"), "Unnamed station");
-                        
-                        collectedStationNames.add(string2);
-
                         object2 = CreateRailwaysDynmapBridge.fieldOrMethod(e, "id", "getId");
                         object = "station_" + CreateRailwaysDynmapBridge.safe((String)(object2 == null ? string2 + "_" + string + "_" + (int)d3 + "_" + (int)d : object2.toString()));
                         this.upsert(object7, object8, (String)object, string2, "Create station", string, d3, d2, d);
@@ -140,20 +141,6 @@ extends JavaPlugin {
                 }
             }
         }
-        
-        // Автосохранение списка станций в stations.txt
-        try {
-            File dataFolder = (File) CreateRailwaysDynmapBridge.call((Object)this, "getDataFolder", new Object[0]);
-            if (dataFolder != null) {
-                if (!dataFolder.exists()) {
-                    dataFolder.mkdirs();
-                }
-                File stationsFile = new File(dataFolder, "stations.txt");
-                Files.write(stationsFile.toPath(), collectedStationNames, StandardCharsets.UTF_8);
-            }
-        } catch (Throwable t) {
-            this.getLogger().warning("Could not save stations.txt: " + t.getMessage());
-        }
 
         if (object10 instanceof Map) {
             map = (Map)object10;
@@ -163,13 +150,9 @@ extends JavaPlugin {
                     Object object13 = CreateRailwaysDynmapBridge.fieldOrMethod(object11, "id", "getId");
                     object12 = CreateRailwaysDynmapBridge.fieldOrMethod(object11, "name", "getName");
                     object6 = CreateRailwaysDynmapBridge.componentText(object12, "Train");
-                    
-                    collectedTrainNames.add((String)object6);
-
                     object5 = CreateRailwaysDynmapBridge.fieldOrMethod(object11, "carriages", "getCarriages");
                     if (!(object5 instanceof Iterable)) continue;
                     Iterable<?> carriages = (Iterable<?>) object5;
-                    boolean bl = false;
                     Iterator<?> carriageIterator = carriages.iterator();
                     while (carriageIterator.hasNext()) {
                         Object object14;
@@ -194,7 +177,6 @@ extends JavaPlugin {
                         this.upsert(object7, object8, (String)object14, (String)object17, "Create train", string, d2, d, d4);
                         hashSet.add((String)object14);
                         ++n2;
-                        bl = true;
                     }
                 }
                 catch (Throwable throwable) {
@@ -203,23 +185,66 @@ extends JavaPlugin {
             }
         }
 
-        // Автосохранение списка поездов в trains.txt
+        TrainMarkerUpdater.update((Object)this, object7, object8, hashSet);
+        if (!hashSet.isEmpty()) {
+            this.removeStale(object8, hashSet);
+        }
+    }
+
+    private void saveTxtFiles() {
+        if (this.stopping) {
+            return;
+        }
         try {
+            RailwayDataSnapshot railwayDataSnapshot = this.railwayDataSnapshot();
+            if (railwayDataSnapshot == null) {
+                return;
+            }
+
+            Set<String> collectedStationNames = new LinkedHashSet<String>();
+            Set<String> collectedTrainNames = new LinkedHashSet<String>();
+
+            Object graphs = railwayDataSnapshot.graphs;
+            if (graphs instanceof Map) {
+                Class<?> edgePointTypeClass = Class.forName("com.simibubi.create.content.trains.graph.EdgePointType");
+                Object stationPointType = edgePointTypeClass.getField("STATION").get(null);
+                for (Object graph : ((Map<?, ?>) graphs).values()) {
+                    Object points = CreateRailwaysDynmapBridge.call(graph, "getPoints", stationPointType);
+                    if (points instanceof Iterable) {
+                        for (Object stationPoint : (Iterable<?>) points) {
+                            try {
+                                String stationName = CreateRailwaysDynmapBridge.text(
+                                    CreateRailwaysDynmapBridge.fieldOrMethod(stationPoint, "name", "getName"), 
+                                    "Unnamed station"
+                                );
+                                collectedStationNames.add(stationName);
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+                }
+            }
+
+            Object trains = railwayDataSnapshot.trains;
+            if (trains instanceof Map) {
+                for (Object trainObj : ((Map<?, ?>) trains).values()) {
+                    try {
+                        Object nameObj = CreateRailwaysDynmapBridge.fieldOrMethod(trainObj, "name", "getName");
+                        String trainName = CreateRailwaysDynmapBridge.componentText(nameObj, "Train");
+                        collectedTrainNames.add(trainName);
+                    } catch (Throwable ignored) {}
+                }
+            }
+
             File dataFolder = (File) CreateRailwaysDynmapBridge.call((Object)this, "getDataFolder", new Object[0]);
             if (dataFolder != null) {
                 if (!dataFolder.exists()) {
                     dataFolder.mkdirs();
                 }
-                File trainsFile = new File(dataFolder, "trains.txt");
-                Files.write(trainsFile.toPath(), collectedTrainNames, StandardCharsets.UTF_8);
+                Files.write(new File(dataFolder, "stations.txt").toPath(), collectedStationNames, StandardCharsets.UTF_8);
+                Files.write(new File(dataFolder, "trains.txt").toPath(), collectedTrainNames, StandardCharsets.UTF_8);
             }
         } catch (Throwable t) {
-            this.getLogger().warning("Could not save trains.txt: " + t.getMessage());
-        }
-
-        TrainMarkerUpdater.update((Object)this, object7, object8, hashSet);
-        if (!hashSet.isEmpty()) {
-            this.removeStale(object8, hashSet);
+            this.getLogger().warning("Could not auto-save stations.txt / trains.txt: " + t.getMessage());
         }
     }
 
@@ -249,14 +274,10 @@ extends JavaPlugin {
     }
 
     private static int mapSize(Object object) {
-        int n;
         if (object instanceof Map) {
-            Map map = (Map)object;
-            n = map.size();
-        } else {
-            n = 0;
+            return ((Map<?, ?>)object).size();
         }
-        return n;
+        return 0;
     }
 
     private Object railwaySavedData() throws Exception {
@@ -355,7 +376,7 @@ extends JavaPlugin {
             Object object = CreateRailwaysDynmapBridge.staticBukkitCall("getServer", new Object[0]);
             Object object2 = CreateRailwaysDynmapBridge.call(object, "getWorlds", new Object[0]);
             if (object2 instanceof Iterable) {
-                for (Object t : (Iterable)object2) {
+                for (Object t : (Iterable<?>)object2) {
                     Object object3 = CreateRailwaysDynmapBridge.optionalCall(t, "getName", new Object[0]);
                     if (object3 == null) continue;
                     this.availableWorlds.add(String.valueOf(object3));
@@ -371,7 +392,7 @@ extends JavaPlugin {
             Object object = CreateRailwaysDynmapBridge.staticBukkitCall("getServer", new Object[0]);
             Object object2 = CreateRailwaysDynmapBridge.call(object, "getWorlds", new Object[0]);
             if (object2 instanceof Iterable) {
-                for (Object t : (Iterable)object2) {
+                for (Object t : (Iterable<?>)object2) {
                     String string2 = String.valueOf(CreateRailwaysDynmapBridge.optionalCall(t, "getEnvironment", new Object[0]));
                     String string3 = String.valueOf(CreateRailwaysDynmapBridge.optionalCall(t, "getName", new Object[0]));
                     if (!string2.equalsIgnoreCase(string) || !this.availableWorlds.contains(string3)) continue;
@@ -391,19 +412,37 @@ extends JavaPlugin {
     }
 
     private void loadAndDetectWorldMappings() throws Exception {
-        File file = (File)CreateRailwaysDynmapBridge.call((Object)this, "getDataFolder", new Object[0]);
+        File file = (File) CreateRailwaysDynmapBridge.call((Object)this, "getDataFolder", new Object[0]);
         if (!(file.exists() || file.mkdirs() || file.isDirectory())) {
             throw new IllegalStateException("Cannot create plugin data folder: " + String.valueOf(file));
         }
-        File file2 = new File(file, "config.yml");
-        if (!file2.isFile()) {
-            String object = "# Create-Railways-Dynmap-Bridge 1.0.0.3\nworlds:\n";
-            Files.writeString(file2.toPath(), (CharSequence)object, StandardCharsets.UTF_8, new OpenOption[0]);
-        }
+
+        // Загружаем существующие оверрайды миров из конфигурации
+        try {
+            if (this.getConfig().isConfigurationSection("worlds")) {
+                Set<String> keys = this.getConfig().getConfigurationSection("worlds").getKeys(false);
+                for (String key : keys) {
+                    String mappedWorld = this.getConfig().getString("worlds." + key);
+                    if (mappedWorld != null) {
+                        this.worldOverrides.put(key, mappedWorld);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
         this.refreshAvailableWorlds();
     }
 
-    private void saveDetectedMapping(String string2, String string3) {}
+    private void saveDetectedMapping(String dim, String world) {
+        if (this.worldOverrides.containsKey(dim)) {
+            return;
+        }
+        try {
+            this.worldOverrides.put(dim, world);
+            this.getConfig().set("worlds." + dim, (Object)world);
+            this.saveConfig();
+        } catch (Throwable ignored) {}
+    }
 
     private String dimensionId(Object object) {
         if (object == null) {
@@ -473,8 +512,8 @@ extends JavaPlugin {
             if (!(object2 instanceof Map)) {
                 return;
             }
-            Map map = (Map)object2;
-            for (Object v : new ArrayList(map.values())) {
+            Map<?, ?> map = (Map<?, ?>)object2;
+            for (Object v : new ArrayList<Object>(map.values())) {
                 String string = String.valueOf(CreateRailwaysDynmapBridge.call(v, "getMarkerID", new Object[0]));
                 if (!string.startsWith("station_") && !string.startsWith("train_") || set.contains(string)) continue;
                 CreateRailwaysDynmapBridge.optionalCall(v, "deleteMarker", new Object[0]);
@@ -663,7 +702,7 @@ final class StationCommand implements org.bukkit.command.CommandExecutor {
         try {
             java.io.File file = new java.io.File(plugin.getDataFolder(), "stations.txt");
             if (!file.exists()) {
-                sender.sendMessage("Файл со станциями еще не создан. Подождите пару секунд после запуска сканирования.");
+                sender.sendMessage("Файл со станциями еще не создан.");
                 return true;
             }
             java.util.List<String> stations = java.nio.file.Files.readAllLines(file.toPath(), java.nio.charset.StandardCharsets.UTF_8);
@@ -694,7 +733,7 @@ final class TrainCommand implements org.bukkit.command.CommandExecutor {
         try {
             java.io.File file = new java.io.File(plugin.getDataFolder(), "trains.txt");
             if (!file.exists()) {
-                sender.sendMessage("Файл с поездами еще не создан. Подождите пару секунд после запуска сканирования.");
+                sender.sendMessage("Файл с поездами еще не создан.");
                 return true;
             }
             java.util.List<String> trains = java.nio.file.Files.readAllLines(file.toPath(), java.nio.charset.StandardCharsets.UTF_8);

@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'com.igrobar'
-    version = '1.0.0.3'
+    version = '1.0.0.4'
 
 java {
     toolchain {
