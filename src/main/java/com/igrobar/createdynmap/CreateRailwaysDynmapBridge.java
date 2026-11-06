@@ -42,23 +42,24 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
         this.getLogger().info("Create Railways - Dynmap Bridge 1.0.0.4 enabled; live Create railway manager integration.");
         try {
             this.loadAndDetectWorldMappings();
-            Object scheduler = CreateRailwaysDynmapBridge.staticBukkitCall("getScheduler", new Object[0]);
-            Method runTaskTimerMethod = CreateRailwaysDynmapBridge.publicMethod(Class.forName("org.bukkit.scheduler.BukkitScheduler"), "runTaskTimer", 4);
             
-            // 1. Быстрое сканирование для Dynmap (каждую секунду / 20 тиков)
-            runTaskTimerMethod.invoke(scheduler, new Object[]{this, (Runnable) this::safeScan, 100L, 20L});
+            // Прямой вызов планировщика Bukkit без хрупкой рефлексии типов
+            org.bukkit.scheduler.BukkitScheduler scheduler = org.bukkit.Bukkit.getScheduler();
             
-            // 2. Фоновый экспорт stations.txt и trains.txt по интервалу из конфига (по умолчанию 3600 сек)
+            // 1. Быстрое сканирование для Dynmap (каждую секунду / 20 тиков после задержки 100 тиков)
+            scheduler.runTaskTimer(this, this::safeScan, 100L, 20L);
+            
+            // 2. Фоновый экспорт stations.txt и trains.txt по интервалу из конфига
             long intervalSeconds = this.getConfig().getLong("export-interval-seconds", 3600L);
             long intervalTicks = Math.max(20L, intervalSeconds * 20L);
-            runTaskTimerMethod.invoke(scheduler, new Object[]{this, (Runnable) this::saveTxtFiles, 100L, intervalTicks});
+            scheduler.runTaskTimer(this, this::saveTxtFiles, 100L, intervalTicks);
         }
         catch (Throwable throwable) {
             this.getLogger().log(Level.SEVERE, "Could not schedule Create railway scan", CreateRailwaysDynmapBridge.unwrap(throwable));
             throw new IllegalStateException(throwable);
         }
     }
-
+    
     @Override
     public void onDisable() {
         this.stopping = true;

@@ -1,5 +1,5 @@
 name: Create-Railways-Dynmap-Bridge
-version: 1.0.0.4
+version: 1.0.0.5
 main: com.igrobar.createdynmap.CreateRailwaysDynmapBridge
 api-version: '1.21'
 softdepend: [dynmap]
