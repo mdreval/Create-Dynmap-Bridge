@@ -74,6 +74,9 @@ The plugin supports automatic detection of Create dimensions and allows you to m
 
 ## 📦 Version History
 
+### Version 1.0.0.5
+- **NeoForge 1.21.1 (Build 265) Compatibility Fix:** Fixed the startup crash caused by an `IllegalArgumentException` / `argument type mismatch`. Completely removed brittle Java reflection for the task scheduler and replaced it with direct, safe `BukkitScheduler` calls, ensuring stable operation on NeoForge 21.1.265 and earlier versions.
+
 ### Version 1.0.0.4
 - **Configurable File Export Interval:** Added `export-interval-seconds` (default: 3600s) to control how often `stations.txt` and `trains.txt` write to disk.
 - **Performance Optimization:** Separated fast live Dynmap marker scans (1s) from background file export timers to reduce disk I/O.
