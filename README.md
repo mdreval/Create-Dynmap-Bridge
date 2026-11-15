@@ -31,7 +31,7 @@ The plugin displays Create railway stations and trains on the interactive Dynmap
 ## ⚙️ Installation
 
 1. Install Create and Dynmap on a compatible server.
-2. Download `Create-Railways-Dynmap-Bridge-1.0.0.4.jar`.
+2. Download `Create-Railways-Dynmap-Bridge-1.0.0.6.jar`.
 3. Place the JAR file in your server's `plugins` directory.
 4. Start or restart the server.
 5. Check the plugin's generated configuration files and data folders.
@@ -51,7 +51,7 @@ The plugin periodically creates and updates two plain-text files inside the plug
 - **`stations.txt`** — Contains a clean list of all scanned railway station names (one per line).
 - **`trains.txt`** — Contains a clean list of all active train names (one per line).
 
-By default, file exports occur every **3600 seconds (1 hour)** to minimize disk reads and writes. Live markers on Dynmap continue to update every second independently.
+By default, file exports occur every **3600 seconds (1 hour)** to minimize disk reads and writes. Live markers on Dynmap update independently: trains every 5 seconds and stations every 60 seconds by default.
 
 ## 🗺️ Configuration
 
@@ -61,6 +61,8 @@ The plugin uses `config.yml` to configure marker icons, export frequencies, and 
 
 - `station-icon` — Sets the icon used for railway stations on Dynmap.
 - `train-icon` — Sets the icon used for trains on Dynmap.
+- `train-update-interval-seconds` — How often train markers are updated on Dynmap (default: 5).
+- `station-update-interval-seconds` — How often station markers are updated on Dynmap (default: 60).
 - `export-interval-seconds` — Controls how frequently `stations.txt` and `trains.txt` are written to disk (default: 3600 = 1 hour).
 
 ### World Mapping
@@ -73,6 +75,12 @@ The plugin supports automatic detection of Create dimensions and allows you to m
 - **`blacklist-trains.yml`** — Exclude specific trains from Dynmap.
 
 ## 📦 Version History
+
+### Version 1.0.0.6
+- **Fixed once-per-second server lag spikes:** the marker scan no longer repeats reflection lookups every second (each lookup is very slow on Youer). Lookups are cached, Bukkit calls are direct and blacklist files are checked once per update.
+- **Separate update intervals** for trains (`train-update-interval-seconds`, 5 s) and stations (`station-update-interval-seconds`, 60 s).
+- **Markers are only updated when something changed.**
+- **Removed trains and stations now disappear from the map** (stale-marker cleanup never ran before).
 
 ### Version 1.0.0.5
 - **NeoForge 1.21.1 (Build 265) Compatibility Fix:** Fixed the startup crash caused by an `IllegalArgumentException` / `argument type mismatch`. Completely removed brittle Java reflection for the task scheduler and replaced it with direct, safe `BukkitScheduler` calls, ensuring stable operation on NeoForge 21.1.265 and earlier versions.

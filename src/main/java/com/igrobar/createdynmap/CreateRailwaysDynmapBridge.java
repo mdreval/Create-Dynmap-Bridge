@@ -1,31 +1,37 @@
 package com.igrobar.createdynmap;
 
-import com.igrobar.createdynmap.BlacklistFiles;
-import com.igrobar.createdynmap.TrainMarkerUpdater;
 import java.io.File;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
+import org.bukkit.Bukkit;
+import org.bukkit.World;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitScheduler;
 
 public final class CreateRailwaysDynmapBridge extends JavaPlugin {
-    private static final String SET_ID = "create_railways";
+    /** Сколько обновлений подряд поезд может «пропасть», прежде чем его маркер удалится. */
+    private static final int TRAIN_MISSES_BEFORE_REMOVAL = 3;
+
     private volatile boolean stopping;
-    private final Set<String> warned = new HashSet<String>();
-    private final Map<String, String> worldOverrides = new LinkedHashMap<String, String>();
-    private final Set<String> availableWorlds = new LinkedHashSet<String>();
+    private final Set<String> warned = new HashSet<>();
+    private final Map<String, String> worldOverrides = new LinkedHashMap<>();
+    private final Set<String> availableWorlds = new LinkedHashSet<>();
+    private final Map<String, String> worldCache = new HashMap<>();
+    private final Map<String, Integer> trainMisses = new HashMap<>();
+    private BlacklistFiles blacklist;
+    private DynmapMarkers markers;
+    private Object stationPointType;
 
     @Override
     public void onEnable() {
@@ -36,634 +42,448 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
             this.getCommand("gettrains").setExecutor(new TrainCommand(this));
         }
 
-        // Сохраняет файл config.yml из ресурсов .jar со ВСЕМИ комментариями, если его еще нет
+        // Сохраняет config.yml из .jar со всеми комментариями, если его ещё нет
         this.saveDefaultConfig();
 
-        this.getLogger().info("Create Railways - Dynmap Bridge 1.0.0.4 enabled; live Create railway manager integration.");
-        try {
-            this.loadAndDetectWorldMappings();
-            
-            // Прямой вызов планировщика Bukkit без хрупкой рефлексии типов
-            org.bukkit.scheduler.BukkitScheduler scheduler = org.bukkit.Bukkit.getScheduler();
-            
-            // 1. Быстрое сканирование для Dynmap (каждую секунду / 20 тиков после задержки 100 тиков)
-            scheduler.runTaskTimer(this, this::safeScan, 100L, 20L);
-            
-            // 2. Фоновый экспорт stations.txt и trains.txt по интервалу из конфига
-            long intervalSeconds = this.getConfig().getLong("export-interval-seconds", 3600L);
-            long intervalTicks = Math.max(20L, intervalSeconds * 20L);
-            scheduler.runTaskTimer(this, this::saveTxtFiles, 100L, intervalTicks);
+        File dataFolder = this.getDataFolder();
+        if (!dataFolder.exists() && !dataFolder.mkdirs() && !dataFolder.isDirectory()) {
+            throw new IllegalStateException("Cannot create plugin data folder: " + dataFolder);
         }
-        catch (Throwable throwable) {
-            this.getLogger().log(Level.SEVERE, "Could not schedule Create railway scan", CreateRailwaysDynmapBridge.unwrap(throwable));
-            throw new IllegalStateException(throwable);
-        }
+        this.blacklist = new BlacklistFiles(dataFolder.toPath());
+        this.blacklist.reloadIfChanged();
+        this.loadWorldOverrides();
+        this.refreshAvailableWorlds();
+
+        long trainTicks = this.intervalTicks("train-update-interval-seconds", 5L);
+        long stationTicks = this.intervalTicks("station-update-interval-seconds", 60L);
+        long exportTicks = this.intervalTicks("export-interval-seconds", 3600L);
+
+        BukkitScheduler scheduler = Bukkit.getScheduler();
+        // Станции почти не меняются — обновляем редко; поезда — чаще. Всё в главном потоке, но дёшево.
+        scheduler.runTaskTimer(this, this::safeStationScan, 100L, stationTicks);
+        scheduler.runTaskTimer(this, this::safeTrainScan, 110L, trainTicks);
+        scheduler.runTaskTimer(this, this::saveTxtFiles, 200L, exportTicks);
+
+        this.getLogger().info("Create Railways - Dynmap Bridge " + this.getDescription().getVersion()
+                + " enabled; trains every " + trainTicks / 20 + "s, stations every " + stationTicks / 20 + "s.");
     }
-    
+
     @Override
     public void onDisable() {
         this.stopping = true;
+        this.markers = null;
+        Reflect.clear();
     }
 
-    private void safeScan() {
+    private long intervalTicks(String key, long defaultSeconds) {
+        long seconds = this.getConfig().getLong(key, defaultSeconds);
+        return Math.max(20L, seconds * 20L);
+    }
+
+    // ------------------------------------------------------------------ сканирование
+
+    private void safeTrainScan() {
         if (this.stopping) {
             return;
         }
         try {
-            this.scan();
-        }
-        catch (Throwable throwable) {
-            this.getLogger().log(Level.WARNING, "Create railway data scan failed: " + String.valueOf(CreateRailwaysDynmapBridge.unwrap(throwable)), CreateRailwaysDynmapBridge.unwrap(throwable));
-        }
-    }
-
-    private void scan() throws Exception {
-        Object object;
-        Object object2;
-        double d;
-        double d2;
-        Object object3;
-        Object object5;
-        Object object6;
-        Map map;
-        Object object7 = this.dynmapApi();
-        if (object7 == null) {
-            this.warnOnce("dynmap", "Dynmap Marker API unavailable; retrying.");
-            return;
-        }
-        Object object8 = this.markerSet(object7);
-        if (object8 == null) {
-            return;
-        }
-        RailwayDataSnapshot railwayDataSnapshot = this.railwayDataSnapshot();
-        if (railwayDataSnapshot == null) {
-            this.warnOnce("create", "Create railway manager/data unavailable. Is Create loaded and railway data initialized?");
-            return;
-        }
-        Object object9 = railwayDataSnapshot.graphs;
-        Object object10 = railwayDataSnapshot.trains;
-        HashSet<String> hashSet = new HashSet<String>();
-        int n = 0;
-        int n2 = 0;
-        int n3 = 0;
-        int n4 = 0;
-        if (object9 instanceof Map) {
-            map = (Map)object9;
-            n3 = map.size();
-            Class<?> clazz = Class.forName("com.simibubi.create.content.trains.graph.EdgePointType");
-            Object object11 = clazz.getField("STATION").get(null);
-            for (Object object12 : map.values()) {
-                object6 = CreateRailwaysDynmapBridge.call(object12, "getPoints", object11);
-                if (!(object6 instanceof Iterable)) continue;
-                Iterable<?> stationPoints = (Iterable<?>) object6;
-                Iterator<?> stationIterator = stationPoints.iterator();
-                while (stationIterator.hasNext()) {
-                    Object e = stationIterator.next();
-                    ++n4;
-                    try {
-                        object3 = this.stationPosition(object12, e);
-                        if (object3 == null) {
-                            throw new IllegalStateException("Could not resolve station position from its track edge");
-                        }
-                        double d3 = CreateRailwaysDynmapBridge.number(CreateRailwaysDynmapBridge.fieldOrMethod(object3, "x", "x"));
-                        d2 = CreateRailwaysDynmapBridge.number(CreateRailwaysDynmapBridge.fieldOrMethod(object3, "y", "y"));
-                        d = CreateRailwaysDynmapBridge.number(CreateRailwaysDynmapBridge.fieldOrMethod(object3, "z", "z"));
-                        String string = this.dynmapWorld(this.stationDimension(e));
-                        String string2 = CreateRailwaysDynmapBridge.text(CreateRailwaysDynmapBridge.fieldOrMethod(e, "name", "getName"), "Unnamed station");
-                        object2 = CreateRailwaysDynmapBridge.fieldOrMethod(e, "id", "getId");
-                        object = "station_" + CreateRailwaysDynmapBridge.safe((String)(object2 == null ? string2 + "_" + string + "_" + (int)d3 + "_" + (int)d : object2.toString()));
-                        this.upsert(object7, object8, (String)object, string2, "Create station", string, d3, d2, d);
-                        hashSet.add((String)object);
-                        ++n;
-                    }
-                    catch (Throwable throwable) {
-                        this.warnOnce("station:" + throwable.getClass().getName(), "Could not read a Create station: " + String.valueOf(CreateRailwaysDynmapBridge.unwrap(throwable)));
-                    }
-                }
-            }
-        }
-
-        if (object10 instanceof Map) {
-            map = (Map)object10;
-            for (Object object11 : map.values()) {
-                try {
-                    Object object12;
-                    Object object13 = CreateRailwaysDynmapBridge.fieldOrMethod(object11, "id", "getId");
-                    object12 = CreateRailwaysDynmapBridge.fieldOrMethod(object11, "name", "getName");
-                    object6 = CreateRailwaysDynmapBridge.componentText(object12, "Train");
-                    object5 = CreateRailwaysDynmapBridge.fieldOrMethod(object11, "carriages", "getCarriages");
-                    if (!(object5 instanceof Iterable)) continue;
-                    Iterable<?> carriages = (Iterable<?>) object5;
-                    Iterator<?> carriageIterator = carriages.iterator();
-                    while (carriageIterator.hasNext()) {
-                        Object object14;
-                        Object t = carriageIterator.next();
-                        Object object15 = CreateRailwaysDynmapBridge.optionalCall(t, "anyAvailableEntity", new Object[0]);
-                        if (object15 == null) continue;
-                        d2 = CreateRailwaysDynmapBridge.number(CreateRailwaysDynmapBridge.call(object15, "getX", new Object[0]));
-                        d = CreateRailwaysDynmapBridge.number(CreateRailwaysDynmapBridge.call(object15, "getY", new Object[0]));
-                        double d4 = CreateRailwaysDynmapBridge.number(CreateRailwaysDynmapBridge.call(object15, "getZ", new Object[0]));
-                        object2 = CreateRailwaysDynmapBridge.optionalCall(object15, "level", new Object[0]);
-                        if (object2 == null) {
-                            object2 = CreateRailwaysDynmapBridge.optionalCall(object15, "getLevel", new Object[0]);
-                        }
-                        object = CreateRailwaysDynmapBridge.optionalCall(object2, "dimension", new Object[0]);
-                        String string = this.dynmapWorld(this.dimensionId(object));
-                        Object object16 = CreateRailwaysDynmapBridge.optionalCall(object11, "getCurrentStation", new Object[0]);
-                        Object object17 = object6;
-                        if (object16 != null && !((String)(object14 = CreateRailwaysDynmapBridge.text(CreateRailwaysDynmapBridge.fieldOrMethod(object16, "name", "getName"), ""))).isBlank()) {
-                            object17 = (String)object17 + " \u2014 at " + (String)object14;
-                        }
-                        object14 = "train_" + CreateRailwaysDynmapBridge.safe(String.valueOf(object13)) + "_" + CreateRailwaysDynmapBridge.safe(string);
-                        this.upsert(object7, object8, (String)object14, (String)object17, "Create train", string, d2, d, d4);
-                        hashSet.add((String)object14);
-                        ++n2;
-                    }
-                }
-                catch (Throwable throwable) {
-                    this.warnOnce("train:" + throwable.getClass().getName(), "Could not read a Create train position: " + String.valueOf(CreateRailwaysDynmapBridge.unwrap(throwable)));
-                }
-            }
-        }
-
-        TrainMarkerUpdater.update((Object)this, object7, object8, hashSet);
-        if (!hashSet.isEmpty()) {
-            this.removeStale(object8, hashSet);
+            this.trainScan();
+        } catch (Throwable throwable) {
+            Throwable cause = Reflect.unwrap(throwable);
+            this.warnOnce("train-scan:" + cause.getClass().getName(), "Create train scan failed: " + cause);
         }
     }
 
-    private void saveTxtFiles() {
+    private void safeStationScan() {
         if (this.stopping) {
             return;
         }
         try {
-            RailwayDataSnapshot railwayDataSnapshot = this.railwayDataSnapshot();
-            if (railwayDataSnapshot == null) {
-                return;
-            }
-
-            Set<String> collectedStationNames = new LinkedHashSet<String>();
-            Set<String> collectedTrainNames = new LinkedHashSet<String>();
-
-            Object graphs = railwayDataSnapshot.graphs;
-            if (graphs instanceof Map) {
-                Class<?> edgePointTypeClass = Class.forName("com.simibubi.create.content.trains.graph.EdgePointType");
-                Object stationPointType = edgePointTypeClass.getField("STATION").get(null);
-                for (Object graph : ((Map<?, ?>) graphs).values()) {
-                    Object points = CreateRailwaysDynmapBridge.call(graph, "getPoints", stationPointType);
-                    if (points instanceof Iterable) {
-                        for (Object stationPoint : (Iterable<?>) points) {
-                            try {
-                                String stationName = CreateRailwaysDynmapBridge.text(
-                                    CreateRailwaysDynmapBridge.fieldOrMethod(stationPoint, "name", "getName"), 
-                                    "Unnamed station"
-                                );
-                                collectedStationNames.add(stationName);
-                            } catch (Throwable ignored) {}
-                        }
-                    }
-                }
-            }
-
-            Object trains = railwayDataSnapshot.trains;
-            if (trains instanceof Map) {
-                for (Object trainObj : ((Map<?, ?>) trains).values()) {
-                    try {
-                        Object nameObj = CreateRailwaysDynmapBridge.fieldOrMethod(trainObj, "name", "getName");
-                        String trainName = CreateRailwaysDynmapBridge.componentText(nameObj, "Train");
-                        collectedTrainNames.add(trainName);
-                    } catch (Throwable ignored) {}
-                }
-            }
-
-            File dataFolder = (File) CreateRailwaysDynmapBridge.call((Object)this, "getDataFolder", new Object[0]);
-            if (dataFolder != null) {
-                if (!dataFolder.exists()) {
-                    dataFolder.mkdirs();
-                }
-                Files.write(new File(dataFolder, "stations.txt").toPath(), collectedStationNames, StandardCharsets.UTF_8);
-                Files.write(new File(dataFolder, "trains.txt").toPath(), collectedTrainNames, StandardCharsets.UTF_8);
-            }
-        } catch (Throwable t) {
-            this.getLogger().warning("Could not auto-save stations.txt / trains.txt: " + t.getMessage());
+            this.stationScan();
+        } catch (Throwable throwable) {
+            Throwable cause = Reflect.unwrap(throwable);
+            this.warnOnce("station-scan:" + cause.getClass().getName(), "Create station scan failed: " + cause);
         }
     }
 
-    private RailwayDataSnapshot railwayDataSnapshot() throws Exception {
-        Object object;
-        Object object2;
-        Object object3;
-        try {
-            object3 = Class.forName("com.simibubi.create.Create");
-            object2 = ((Class)object3).getField("RAILWAYS").get(null);
-            object = CreateRailwaysDynmapBridge.fieldOrMethod(object2, "trackNetworks", "getTrackNetworks");
-            Object object4 = CreateRailwaysDynmapBridge.fieldOrMethod(object2, "trains", "getTrains");
-            if (CreateRailwaysDynmapBridge.mapSize(object) > 0 || CreateRailwaysDynmapBridge.mapSize(object4) > 0) {
-                return new RailwayDataSnapshot(object, object4, "Create.RAILWAYS");
-            }
-        }
-        catch (Throwable throwable) {
-            this.warnOnce("live-manager", "Could not read Create.RAILWAYS directly; trying RailwaySavedData: " + String.valueOf(CreateRailwaysDynmapBridge.unwrap(throwable)));
-        }
-        object3 = this.railwaySavedData();
-        if (object3 == null) {
+    /** Общая подготовка к циклу: Dynmap, данные Create, миры, чёрные списки. */
+    private RailwayDataSnapshot beginCycle() throws Exception {
+        if (this.connectDynmap() == null) {
             return null;
         }
-        object2 = CreateRailwaysDynmapBridge.call(object3, "getTrackNetworks", new Object[0]);
-        object = CreateRailwaysDynmapBridge.call(object3, "getTrains", new Object[0]);
-        return new RailwayDataSnapshot(object2, object, "RailwaySavedData");
+        RailwayDataSnapshot snapshot = this.railwayDataSnapshot();
+        if (snapshot == null) {
+            this.warnOnce("create", "Create railway manager/data unavailable. Is Create loaded and railway data initialized?");
+            return null;
+        }
+        this.refreshAvailableWorlds();
+        this.worldCache.clear();
+        this.blacklist.reloadIfChanged();
+        return snapshot;
     }
 
-    private static int mapSize(Object object) {
-        if (object instanceof Map) {
-            return ((Map<?, ?>)object).size();
+    private void trainScan() throws Exception {
+        RailwayDataSnapshot snapshot = this.beginCycle();
+        if (snapshot == null || !(snapshot.trains instanceof Map<?, ?> trains)) {
+            return;
         }
-        return 0;
+        Set<String> seen = new HashSet<>();
+        int count = TrainMarkerUpdater.update(this, trains, seen);
+        if (count == 0 && !trains.isEmpty()) {
+            this.warnOnce("no-train-positions", "Create has " + trains.size() + " train(s), but no carriage returned a position. Train markers will be retried.");
+        } else if (count > 0) {
+            this.warned.remove("no-train-positions");
+        }
+
+        // Удаляем маркеры поездов, которых нет уже несколько обновлений подряд (удалённые/разобранные поезда)
+        Set<String> existing = this.markers.markerIds("train_");
+        this.trainMisses.keySet().retainAll(existing);
+        for (String markerId : existing) {
+            if (seen.contains(markerId)) {
+                this.trainMisses.remove(markerId);
+                continue;
+            }
+            int misses = this.trainMisses.merge(markerId, 1, Integer::sum);
+            if (misses >= TRAIN_MISSES_BEFORE_REMOVAL) {
+                this.markers.delete(markerId);
+                this.trainMisses.remove(markerId);
+            }
+        }
+    }
+
+    private void stationScan() throws Exception {
+        RailwayDataSnapshot snapshot = this.beginCycle();
+        if (snapshot == null || !(snapshot.graphs instanceof Map<?, ?> graphs)) {
+            return;
+        }
+        Object stationType = this.stationPointType();
+        Set<String> seen = new HashSet<>();
+        for (Object graph : graphs.values()) {
+            Object points = Reflect.call(graph, "getPoints", stationType);
+            if (!(points instanceof Iterable<?> stations)) {
+                continue;
+            }
+            for (Object station : stations) {
+                try {
+                    Object position = this.stationPosition(graph, station);
+                    if (position == null) {
+                        throw new IllegalStateException("Could not resolve station position from its track edge");
+                    }
+                    double x = Reflect.number(Reflect.fieldOrMethod(position, "x", "x"));
+                    double y = Reflect.number(Reflect.fieldOrMethod(position, "y", "y"));
+                    double z = Reflect.number(Reflect.fieldOrMethod(position, "z", "z"));
+                    String world = this.dynmapWorld(this.stationDimension(station));
+                    String name = Reflect.text(Reflect.fieldOrMethod(station, "name", "getName"), "Unnamed station");
+                    Object id = Reflect.fieldOrMethod(station, "id", "getId");
+                    String markerId = "station_" + Reflect.safe(id == null ? name + "_" + world + "_" + (int) x + "_" + (int) z : id.toString());
+                    if (this.upsert(markerId, name, "Create station", world, x, y, z)) {
+                        seen.add(markerId);
+                    }
+                } catch (Throwable throwable) {
+                    Throwable cause = Reflect.unwrap(throwable);
+                    this.warnOnce("station:" + cause.getClass().getName(), "Could not read a Create station: " + cause);
+                }
+            }
+        }
+        // Удалённые станции убираем с карты (только если скан что-то нашёл, чтобы не стереть всё при сбое)
+        if (!seen.isEmpty()) {
+            for (String markerId : this.markers.markerIds("station_")) {
+                if (!seen.contains(markerId)) {
+                    this.markers.delete(markerId);
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ Dynmap
+
+    private DynmapMarkers connectDynmap() {
+        Plugin dynmap = Bukkit.getPluginManager().getPlugin("dynmap");
+        if (dynmap == null || !dynmap.isEnabled()) {
+            this.markers = null;
+            this.warnOnce("dynmap", "Dynmap Marker API unavailable; retrying.");
+            return null;
+        }
+        if (this.markers != null && this.markers.isCurrent(dynmap)) {
+            return this.markers;
+        }
+        try {
+            this.markers = DynmapMarkers.connect(dynmap);
+        } catch (Throwable throwable) {
+            this.markers = null;
+        }
+        if (this.markers == null) {
+            this.warnOnce("dynmap", "Dynmap Marker API unavailable; retrying.");
+        }
+        return this.markers;
+    }
+
+    /** Создаёт/обновляет маркер. Возвращает false, если маркер в чёрном списке или Dynmap недоступен. */
+    boolean upsert(String markerId, String label, String kind, String world, double x, double y, double z) throws Exception {
+        if (this.markers == null) {
+            return false;
+        }
+        if (this.blacklist.isBlacklisted(markerId, label)) {
+            this.markers.delete(markerId);
+            return false;
+        }
+        String description = kind + "<br/>" + world + " @ " + (int) x + ", " + (int) y + ", " + (int) z;
+        String icon = markerId.startsWith("train_") ? this.configuredTrainIcon() : this.configuredStationIcon();
+        this.markers.upsert(markerId, label, world, x, y, z, description, icon);
+        return true;
+    }
+
+    // ------------------------------------------------------------------ данные Create
+
+    private RailwayDataSnapshot railwayDataSnapshot() throws Exception {
+        try {
+            Object manager = Reflect.staticField(Reflect.type("com.simibubi.create.Create"), "RAILWAYS");
+            Object graphs = Reflect.fieldOrMethod(manager, "trackNetworks", "getTrackNetworks");
+            Object trains = Reflect.fieldOrMethod(manager, "trains", "getTrains");
+            if (mapSize(graphs) > 0 || mapSize(trains) > 0) {
+                return new RailwayDataSnapshot(graphs, trains);
+            }
+        } catch (Throwable throwable) {
+            this.warnOnce("live-manager", "Could not read Create.RAILWAYS directly; trying RailwaySavedData: " + Reflect.unwrap(throwable));
+        }
+        Object savedData = this.railwaySavedData();
+        if (savedData == null) {
+            return null;
+        }
+        return new RailwayDataSnapshot(Reflect.call(savedData, "getTrackNetworks"), Reflect.call(savedData, "getTrains"));
+    }
+
+    private static int mapSize(Object value) {
+        return value instanceof Map<?, ?> map ? map.size() : 0;
     }
 
     private Object railwaySavedData() throws Exception {
-        Object object = CreateRailwaysDynmapBridge.staticBukkitCall("getServer", new Object[0]);
-        Object object2 = CreateRailwaysDynmapBridge.optionalCall(object, "getServer", new Object[0]);
-        if (object2 == null) {
-            object2 = object;
+        Object craftServer = Bukkit.getServer();
+        Object minecraftServer = Reflect.optionalCall(craftServer, "getServer");
+        if (minecraftServer == null) {
+            minecraftServer = craftServer;
         }
-        Class<?> clazz = Class.forName("com.simibubi.create.content.trains.RailwaySavedData");
-        for (Method method : clazz.getMethods()) {
-            if (!method.getName().equals("load") || method.getParameterCount() != 1 || !method.getParameterTypes()[0].isInstance(object2)) continue;
-            return method.invoke(null, object2);
-        }
-        throw new NoSuchMethodException("RailwaySavedData.load(MinecraftServer)");
+        return Reflect.callStatic(Reflect.type("com.simibubi.create.content.trains.RailwaySavedData"), "load", minecraftServer);
     }
 
-    private Object stationPosition(Object object, Object object2) throws Exception {
-        Object object3 = CreateRailwaysDynmapBridge.fieldOrMethod(object2, "edgeLocation", "getEdgeLocation");
-        if (object3 == null) {
-            return null;
+    private Object stationPointType() throws Exception {
+        if (this.stationPointType == null) {
+            this.stationPointType = Reflect.staticField(Reflect.type("com.simibubi.create.content.trains.graph.EdgePointType"), "STATION");
         }
-        Object object4 = CreateRailwaysDynmapBridge.call(object3, "getFirst", new Object[0]);
-        Object object5 = CreateRailwaysDynmapBridge.call(object3, "getSecond", new Object[0]);
-        Object object6 = CreateRailwaysDynmapBridge.call(object, "locateNode", object4);
-        Object object7 = CreateRailwaysDynmapBridge.call(object, "locateNode", object5);
-        if (object6 == null || object7 == null) {
-            return null;
-        }
-        Class<?> clazz = Class.forName("net.createmod.catnip.data.Couple");
-        Object object8 = null;
-        for (Method d2 : clazz.getMethods()) {
-            if (!Modifier.isStatic(d2.getModifiers()) || !d2.getName().equals("create") || d2.getParameterCount() != 2 || !d2.getParameterTypes()[0].isInstance(object6) || !d2.getParameterTypes()[1].isInstance(object7)) continue;
-            object8 = d2.invoke(null, object6, object7);
-            break;
-        }
-        if (object8 == null) {
-            return null;
-        }
-        Object object9 = CreateRailwaysDynmapBridge.call(object, "getConnection", object8);
-        if (object9 == null) {
-            return null;
-        }
-        double d = CreateRailwaysDynmapBridge.number(CreateRailwaysDynmapBridge.call(object9, "getLength", new Object[0]));
-        double d2 = CreateRailwaysDynmapBridge.number(CreateRailwaysDynmapBridge.call(object2, "getLocationOn", object9));
-        double d3 = d == 0.0 ? 0.0 : Math.max(0.0, Math.min(1.0, d2 / d));
-        return CreateRailwaysDynmapBridge.call(object9, "getPosition", object, d3);
+        return this.stationPointType;
     }
 
-    private String stationDimension(Object object) {
+    private Object stationPosition(Object graph, Object station) throws Exception {
+        Object edgeLocation = Reflect.fieldOrMethod(station, "edgeLocation", "getEdgeLocation");
+        if (edgeLocation == null) {
+            return null;
+        }
+        Object first = Reflect.call(graph, "locateNode", Reflect.call(edgeLocation, "getFirst"));
+        Object second = Reflect.call(graph, "locateNode", Reflect.call(edgeLocation, "getSecond"));
+        if (first == null || second == null) {
+            return null;
+        }
+        Object nodes = Reflect.callStatic(Reflect.type("net.createmod.catnip.data.Couple"), "create", first, second);
+        Object edge = Reflect.call(graph, "getConnection", nodes);
+        if (edge == null) {
+            return null;
+        }
+        double length = Reflect.number(Reflect.call(edge, "getLength"));
+        double location = Reflect.number(Reflect.call(station, "getLocationOn", edge));
+        double t = length == 0.0 ? 0.0 : Math.max(0.0, Math.min(1.0, location / length));
+        return Reflect.call(edge, "getPosition", graph, t);
+    }
+
+    private String stationDimension(Object station) {
         try {
-            Object object2;
-            Object object3 = CreateRailwaysDynmapBridge.fieldOrMethod(object, "edgeLocation", "getEdgeLocation");
-            Object object4 = CreateRailwaysDynmapBridge.optionalCall(object3, "getFirst", new Object[0]);
-            if (object4 == null) {
-                object4 = CreateRailwaysDynmapBridge.optionalCall(object3, "getFirstValue", new Object[0]);
+            Object edgeLocation = Reflect.fieldOrMethod(station, "edgeLocation", "getEdgeLocation");
+            Object first = Reflect.optionalCall(edgeLocation, "getFirst");
+            if (first == null) {
+                first = Reflect.optionalCall(edgeLocation, "getFirstValue");
             }
-            if (object4 != null && (object2 = CreateRailwaysDynmapBridge.fieldOrMethod(object4, "dimension", "getDimension")) != null) {
-                return this.dimensionId(object2);
+            Object dimension = first == null ? null : Reflect.fieldOrMethod(first, "dimension", "getDimension");
+            if (dimension != null) {
+                return this.dimensionId(dimension);
             }
+        } catch (Throwable ignored) {
+            // упадём на "world" ниже
         }
-        catch (Throwable throwable) {}
         return "world";
     }
 
-    private String dynmapWorld(String string) {
-        List<String> list;
-        String string2 = this.normalizeDimension(string);
-        this.refreshAvailableWorlds();
-        String string3 = this.worldOverrides.get(string2);
-        if (string3 != null && this.availableWorlds.contains(string3)) {
-            return string3;
+    String dimensionId(Object dimension) {
+        if (dimension == null) {
+            return "world";
         }
-        String string4 = string2.contains("/") ? string2.substring(string2.indexOf(47) + 1) : string2;
-        for (String object2 : this.availableWorlds) {
-            if (!object2.equalsIgnoreCase(string) && !object2.equalsIgnoreCase(string2) && !object2.equalsIgnoreCase(string4) && !object2.equalsIgnoreCase(string4.replace('/', '_'))) continue;
-            this.saveDetectedMapping(string2, object2);
-            return object2;
+        Object location = Reflect.optionalCall(dimension, "location");
+        if (location != null) {
+            return String.valueOf(location);
         }
-        Object object3 = null;
-        if (string2.equals("minecraft/overworld")) {
-            object3 = "NORMAL";
-        } else if (string2.equals("minecraft/the_nether")) {
-            object3 = "NETHER";
-        } else if (string2.equals("minecraft/the_end")) {
-            object3 = "THE_END";
+        String text = String.valueOf(dimension);
+        int index = text.lastIndexOf(" / ");
+        if (index >= 0 && text.endsWith("]")) {
+            return text.substring(index + 3, text.length() - 1);
         }
-        if (object3 != null && !(list = this.worldsForEnvironment((String)object3)).isEmpty()) {
-            this.saveDetectedMapping(string2, list.get(0));
-            return list.get(0);
+        return text;
+    }
+
+    // ------------------------------------------------------------------ миры Dynmap
+
+    String dynmapWorld(String dimension) {
+        String key = dimension == null ? "" : dimension;
+        String cached = this.worldCache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        String world = this.resolveWorld(dimension);
+        this.worldCache.put(key, world);
+        return world;
+    }
+
+    private String resolveWorld(String dimension) {
+        String normalized = normalizeDimension(dimension);
+        String override = this.worldOverrides.get(normalized);
+        if (override != null && this.availableWorlds.contains(override)) {
+            return override;
+        }
+        String path = normalized.contains("/") ? normalized.substring(normalized.indexOf('/') + 1) : normalized;
+        for (String world : this.availableWorlds) {
+            if (world.equalsIgnoreCase(dimension) || world.equalsIgnoreCase(normalized)
+                    || world.equalsIgnoreCase(path) || world.equalsIgnoreCase(path.replace('/', '_'))) {
+                this.saveDetectedMapping(normalized, world);
+                return world;
+            }
+        }
+        String environment = switch (normalized) {
+            case "minecraft/overworld" -> "NORMAL";
+            case "minecraft/the_nether" -> "NETHER";
+            case "minecraft/the_end" -> "THE_END";
+            default -> null;
+        };
+        if (environment != null) {
+            List<String> candidates = this.worldsForEnvironment(environment);
+            if (!candidates.isEmpty()) {
+                this.saveDetectedMapping(normalized, candidates.get(0));
+                return candidates.get(0);
+            }
         }
         return this.availableWorlds.isEmpty() ? "world" : this.availableWorlds.iterator().next();
     }
 
     private void refreshAvailableWorlds() {
         try {
-            Object object = CreateRailwaysDynmapBridge.staticBukkitCall("getServer", new Object[0]);
-            Object object2 = CreateRailwaysDynmapBridge.call(object, "getWorlds", new Object[0]);
-            if (object2 instanceof Iterable) {
-                for (Object t : (Iterable<?>)object2) {
-                    Object object3 = CreateRailwaysDynmapBridge.optionalCall(t, "getName", new Object[0]);
-                    if (object3 == null) continue;
-                    this.availableWorlds.add(String.valueOf(object3));
-                }
+            for (World world : Bukkit.getWorlds()) {
+                this.availableWorlds.add(world.getName());
             }
+        } catch (Throwable ignored) {
+            // список миров недоступен — используем то, что уже знаем
         }
-        catch (Throwable throwable) {}
     }
 
-    private List<String> worldsForEnvironment(String string) {
-        ArrayList<String> arrayList = new ArrayList<String>();
+    private List<String> worldsForEnvironment(String environment) {
+        List<String> result = new ArrayList<>();
         try {
-            Object object = CreateRailwaysDynmapBridge.staticBukkitCall("getServer", new Object[0]);
-            Object object2 = CreateRailwaysDynmapBridge.call(object, "getWorlds", new Object[0]);
-            if (object2 instanceof Iterable) {
-                for (Object t : (Iterable<?>)object2) {
-                    String string2 = String.valueOf(CreateRailwaysDynmapBridge.optionalCall(t, "getEnvironment", new Object[0]));
-                    String string3 = String.valueOf(CreateRailwaysDynmapBridge.optionalCall(t, "getName", new Object[0]));
-                    if (!string2.equalsIgnoreCase(string) || !this.availableWorlds.contains(string3)) continue;
-                    arrayList.add(string3);
+            for (World world : Bukkit.getWorlds()) {
+                if (world.getEnvironment().name().equalsIgnoreCase(environment) && this.availableWorlds.contains(world.getName())) {
+                    result.add(world.getName());
                 }
             }
+        } catch (Throwable ignored) {
+            // нет подходящих миров
         }
-        catch (Throwable throwable) {}
-        return arrayList;
+        return result;
     }
 
-    private String normalizeDimension(String string) {
-        if (string == null || string.isBlank() || string.equals("world")) {
+    private static String normalizeDimension(String dimension) {
+        if (dimension == null || dimension.isBlank() || dimension.equals("world")) {
             return "minecraft/overworld";
         }
-        return string.replace(':', '/');
+        return dimension.replace(':', '/');
     }
 
-    private void loadAndDetectWorldMappings() throws Exception {
-        File file = (File) CreateRailwaysDynmapBridge.call((Object)this, "getDataFolder", new Object[0]);
-        if (!(file.exists() || file.mkdirs() || file.isDirectory())) {
-            throw new IllegalStateException("Cannot create plugin data folder: " + String.valueOf(file));
-        }
-
-        // Загружаем существующие оверрайды миров из конфигурации
+    private void loadWorldOverrides() {
         try {
-            if (this.getConfig().isConfigurationSection("worlds")) {
-                Set<String> keys = this.getConfig().getConfigurationSection("worlds").getKeys(false);
-                for (String key : keys) {
-                    String mappedWorld = this.getConfig().getString("worlds." + key);
-                    if (mappedWorld != null) {
-                        this.worldOverrides.put(key, mappedWorld);
+            ConfigurationSection section = this.getConfig().getConfigurationSection("worlds");
+            if (section != null) {
+                for (String key : section.getKeys(false)) {
+                    String mapped = section.getString(key);
+                    if (mapped != null) {
+                        this.worldOverrides.put(key, mapped);
                     }
                 }
             }
-        } catch (Throwable ignored) {}
-
-        this.refreshAvailableWorlds();
+        } catch (Throwable ignored) {
+            // без оверрайдов работает автоопределение
+        }
     }
 
-    private void saveDetectedMapping(String dim, String world) {
-        if (this.worldOverrides.containsKey(dim)) {
+    private void saveDetectedMapping(String dimension, String world) {
+        if (this.worldOverrides.containsKey(dimension)) {
             return;
         }
         try {
-            this.worldOverrides.put(dim, world);
-            this.getConfig().set("worlds." + dim, (Object)world);
+            this.worldOverrides.put(dimension, world);
+            this.getConfig().set("worlds." + dimension, world);
             this.saveConfig();
-        } catch (Throwable ignored) {}
-    }
-
-    private String dimensionId(Object object) {
-        if (object == null) {
-            return "world";
-        }
-        Object object2 = CreateRailwaysDynmapBridge.optionalCall(object, "location", new Object[0]);
-        if (object2 != null) {
-            return String.valueOf(object2);
-        }
-        String string = String.valueOf(object);
-        int n = string.lastIndexOf(" / ");
-        if (n >= 0 && string.endsWith("]")) {
-            return string.substring(n + 3, string.length() - 1);
-        }
-        return string;
-    }
-
-    private Object dynmapApi() {
-        try {
-            Object object = CreateRailwaysDynmapBridge.staticBukkitCall("getPluginManager", new Object[0]);
-            Object object2 = CreateRailwaysDynmapBridge.call(object, "getPlugin", "dynmap");
-            if (object2 == null || !Boolean.TRUE.equals(CreateRailwaysDynmapBridge.call(object2, "isEnabled", new Object[0]))) {
-                return null;
-            }
-            return CreateRailwaysDynmapBridge.call(object2, "getMarkerAPI", new Object[0]);
-        }
-        catch (Throwable throwable) {
-            return null;
+        } catch (Throwable ignored) {
+            // не критично: сопоставление всё равно запомнено в памяти
         }
     }
 
-    private Object markerSet(Object object) throws Exception {
-        Object object2 = CreateRailwaysDynmapBridge.call(object, "getMarkerSet", SET_ID);
-        if (object2 == null) {
-            object2 = CreateRailwaysDynmapBridge.call(object, "createMarkerSet", SET_ID, "Create / Railways", null, false);
-        }
-        if (object2 != null) {
-            CreateRailwaysDynmapBridge.optionalCall(object2, "setMarkerSetLabel", "Create / Railways");
-            CreateRailwaysDynmapBridge.optionalCall(object2, "setLayerPriority", 5);
-            CreateRailwaysDynmapBridge.optionalCall(object2, "setHideByDefault", false);
-        }
-        return object2;
-    }
+    // ------------------------------------------------------------------ экспорт stations.txt / trains.txt
 
-    private void upsert(Object object, Object object2, String string, String string2, String string3, String string4, double d, double d2, double d3) throws Exception {
-        if (BlacklistFiles.isBlacklisted((Object)this, string, string2)) {
-            Object object3 = CreateRailwaysDynmapBridge.optionalCall(object2, "findMarker", string);
-            if (object3 != null) {
-                CreateRailwaysDynmapBridge.optionalCall(object3, "deleteMarker", new Object[0]);
-            }
+    private void saveTxtFiles() {
+        if (this.stopping) {
             return;
         }
-        Object object4 = CreateRailwaysDynmapBridge.call(object2, "findMarker", string);
-        if (object4 == null) {
-            Object object5 = CreateRailwaysDynmapBridge.optionalCall(object, "getMarkerIcon", string.startsWith("train_") ? this.configuredTrainIcon() : this.configuredStationIcon());
-            object4 = CreateRailwaysDynmapBridge.call(object2, "createMarker", string, string2, true, string4, d, d2, d3, object5, false);
-        } else {
-            CreateRailwaysDynmapBridge.call(object4, "setLabel", string2);
-            CreateRailwaysDynmapBridge.call(object4, "setLocation", string4, d, d2, d3);
-        }
-        CreateRailwaysDynmapBridge.optionalCall(object4, "setDescription", string3 + "<br/>" + string4 + " @ " + (int)d + ", " + (int)d2 + ", " + (int)d3);
-    }
-
-    private void removeStale(Object object, Set<String> set) {
         try {
-            Object object2 = CreateRailwaysDynmapBridge.call(object, "getMarkers", new Object[0]);
-            if (!(object2 instanceof Map)) {
+            RailwayDataSnapshot snapshot = this.railwayDataSnapshot();
+            if (snapshot == null) {
                 return;
             }
-            Map<?, ?> map = (Map<?, ?>)object2;
-            for (Object v : new ArrayList<Object>(map.values())) {
-                String string = String.valueOf(CreateRailwaysDynmapBridge.call(v, "getMarkerID", new Object[0]));
-                if (!string.startsWith("station_") && !string.startsWith("train_") || set.contains(string)) continue;
-                CreateRailwaysDynmapBridge.optionalCall(v, "deleteMarker", new Object[0]);
+            Set<String> stationNames = new LinkedHashSet<>();
+            Set<String> trainNames = new LinkedHashSet<>();
+            if (snapshot.graphs instanceof Map<?, ?> graphs) {
+                Object stationType = this.stationPointType();
+                for (Object graph : graphs.values()) {
+                    Object points = Reflect.call(graph, "getPoints", stationType);
+                    if (points instanceof Iterable<?> stations) {
+                        for (Object station : stations) {
+                            try {
+                                stationNames.add(Reflect.text(Reflect.fieldOrMethod(station, "name", "getName"), "Unnamed station"));
+                            } catch (Throwable ignored) {
+                                // пропускаем станцию
+                            }
+                        }
+                    }
+                }
             }
-        }
-        catch (Throwable throwable) {}
-    }
-
-    private static Object fieldOrMethod(Object object, String string, String string2) throws Exception {
-        if (object == null) {
-            return null;
-        }
-        try {
-            Field field = object.getClass().getField(string);
-            return field.get(object);
-        }
-        catch (NoSuchFieldException noSuchFieldException) {
-            try {
-                return CreateRailwaysDynmapBridge.call(object, string2, new Object[0]);
+            if (snapshot.trains instanceof Map<?, ?> trains) {
+                for (Object train : trains.values()) {
+                    try {
+                        trainNames.add(Reflect.componentText(Reflect.fieldOrMethod(train, "name", "getName"), "Train"));
+                    } catch (Throwable ignored) {
+                        // пропускаем поезд
+                    }
+                }
             }
-            catch (NoSuchMethodException noSuchMethodException) {
-                return null;
+            File dataFolder = this.getDataFolder();
+            if (!dataFolder.exists()) {
+                dataFolder.mkdirs();
             }
+            Files.write(new File(dataFolder, "stations.txt").toPath(), stationNames, StandardCharsets.UTF_8);
+            Files.write(new File(dataFolder, "trains.txt").toPath(), trainNames, StandardCharsets.UTF_8);
+        } catch (Throwable throwable) {
+            this.getLogger().log(Level.WARNING, "Could not auto-save stations.txt / trains.txt: " + Reflect.unwrap(throwable));
         }
     }
 
-    private static Object optionalCall(Object object, String string, Object ... objectArray) {
-        try {
-            return CreateRailwaysDynmapBridge.call(object, string, objectArray);
-        }
-        catch (Throwable throwable) {
-            return null;
-        }
-    }
+    // ------------------------------------------------------------------ прочее
 
-    private static Object call(Object object, String string, Object ... objectArray) throws Exception {
-        if (object == null) {
-            return null;
+    void warnOnce(String key, String message) {
+        if (this.warned.add(key)) {
+            this.getLogger().warning(message);
         }
-        Method method = CreateRailwaysDynmapBridge.findPublicMethod(object.getClass(), string, objectArray);
-        if (method == null) {
-            throw new NoSuchMethodException(object.getClass().getName() + "." + string + "/" + objectArray.length);
-        }
-        return method.invoke(object, objectArray);
-    }
-
-    private static Method findPublicMethod(Class<?> clazz, String string, Object[] objectArray) {
-        for (Class<?> clazz2 = clazz; clazz2 != null; clazz2 = clazz2.getSuperclass()) {
-            for (Class<?> clazz3 : clazz2.getInterfaces()) {
-                Method method = CreateRailwaysDynmapBridge.findInInterface(clazz3, string, objectArray);
-                if (method == null) continue;
-                return method;
-            }
-            for (Method method : clazz2.getDeclaredMethods()) {
-                if (!CreateRailwaysDynmapBridge.matches(method, string, objectArray) || !Modifier.isPublic(method.getModifiers()) || !Modifier.isPublic(clazz2.getModifiers())) continue;
-                return method;
-            }
-        }
-        return null;
-    }
-
-    private static Method findInInterface(Class<?> clazz, String string, Object[] objectArray) {
-        for (Method genericDeclaration : clazz.getMethods()) {
-            if (!CreateRailwaysDynmapBridge.matches(genericDeclaration, string, objectArray)) continue;
-            return genericDeclaration;
-        }
-        for (Class<?> interfaceClass : clazz.getInterfaces()) {
-            Method method = CreateRailwaysDynmapBridge.findInInterface(interfaceClass, string, objectArray);
-            if (method == null) continue;
-            return method;
-        }
-        return null;
-    }
-
-    private static Object staticBukkitCall(String string, Object ... objectArray) throws Exception {
-        Class<?> clazz = Class.forName("org.bukkit.Bukkit");
-        Method method = CreateRailwaysDynmapBridge.findPublicMethod(clazz, string, objectArray);
-        if (method == null) {
-            throw new NoSuchMethodException("org.bukkit.Bukkit." + string + "/" + objectArray.length);
-        }
-        return method.invoke(null, objectArray);
-    }
-
-    private static Method publicMethod(Class<?> clazz, String string, int n) throws NoSuchMethodException {
-        for (Method method : clazz.getMethods()) {
-            if (!method.getName().equals(string) || method.getParameterCount() != n) continue;
-            return method;
-        }
-        throw new NoSuchMethodException(clazz.getName() + "." + string);
-    }
-
-    private static boolean matches(Method method, String string, Object[] objectArray) {
-        if (!method.getName().equals(string) || method.getParameterCount() != objectArray.length) {
-            return false;
-        }
-        Class<?>[] classArray = method.getParameterTypes();
-        for (int i = 0; i < classArray.length; ++i) {
-            if (objectArray[i] == null || CreateRailwaysDynmapBridge.wrap(classArray[i]).isAssignableFrom(objectArray[i].getClass())) continue;
-            return false;
-        }
-        return true;
-    }
-
-    private static Class<?> wrap(Class<?> clazz) {
-        if (!clazz.isPrimitive()) {
-            return clazz;
-        }
-        if (clazz == Boolean.TYPE) return Boolean.class;
-        if (clazz == Integer.TYPE) return Integer.class;
-        if (clazz == Long.TYPE) return Long.class;
-        if (clazz == Double.TYPE) return Double.class;
-        if (clazz == Float.TYPE) return Float.class;
-        if (clazz == Short.TYPE) return Short.class;
-        if (clazz == Byte.TYPE) return Byte.class;
-        if (clazz == Character.TYPE) return Character.class;
-        return clazz;
-    }
-
-    private void warnOnce(String string, String string2) {
-        if (this.warned.add(string)) {
-            this.getLogger().warning(string2);
-        }
-    }
-
-    private static Throwable unwrap(Throwable throwable) {
-        while (throwable instanceof InvocationTargetException && ((InvocationTargetException)throwable).getCause() != null) {
-            throwable = ((InvocationTargetException)throwable).getCause();
-        }
-        return throwable;
-    }
-
-    private static double number(Object object) {
-        return ((Number)object).doubleValue();
-    }
-
-    private static String text(Object object, String string) {
-        return object == null ? string : String.valueOf(object);
-    }
-
-    private static String componentText(Object object, String string) {
-        if (object == null) {
-            return string;
-        }
-        Object object2 = CreateRailwaysDynmapBridge.optionalCall(object, "getString", new Object[0]);
-        return object2 == null ? String.valueOf(object) : String.valueOf(object2);
-    }
-
-    private static String safe(String string) {
-        return string.replaceAll("[^A-Za-z0-9_.-]", "_");
     }
 
     private String configuredStationIcon() {
@@ -677,12 +497,10 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
     private static final class RailwayDataSnapshot {
         final Object graphs;
         final Object trains;
-        final String source;
 
-        RailwayDataSnapshot(Object object, Object object2, String string) {
-            this.graphs = object;
-            this.trains = object2;
-            this.source = string;
+        RailwayDataSnapshot(Object graphs, Object trains) {
+            this.graphs = graphs;
+            this.trains = trains;
         }
     }
 }

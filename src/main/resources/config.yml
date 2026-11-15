@@ -1,4 +1,4 @@
-# Create Railways - Dynmap Bridge 1.0.0.5
+# Create Railways - Dynmap Bridge 1.0.0.6
 # Choose icon IDs from the list below. Changes take effect after restarting the server.
 
 # Station icon
@@ -6,6 +6,14 @@ station-icon: "bank"
 
 # Train icon
 train-icon: "bricks"
+
+# How often train markers are updated on Dynmap, in seconds (default: 5).
+# Lower values = more up-to-date map, but more work for the server.
+train-update-interval-seconds: 5
+
+# How often station markers are updated on Dynmap, in seconds (default: 60).
+# Stations rarely move, so this can stay high.
+station-update-interval-seconds: 60
 
 # Export interval in seconds for stations.txt and trains.txt (default: 3600 = 1 hour)
 export-interval-seconds: 3600
