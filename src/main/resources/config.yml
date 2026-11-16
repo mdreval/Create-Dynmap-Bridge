@@ -51,7 +51,8 @@ web-map:
   # Remember to open this port in your firewall / hosting panel.
   bind-address: "0.0.0.0"
   port: 25850
-  # Link shown by /railmap. Leave empty to use http://<server-ip>:<port>/
+  # Link shown by /railmap. Leave empty to build it automatically from the address
+  # the player used to join (e.g. play.example.com) and the port above.
   # Example: "https://map.example.com/trains/"
   public-url: ""
   # Website title. Leave empty for the default title in the selected language.

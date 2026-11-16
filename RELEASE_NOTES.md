@@ -47,7 +47,7 @@ The plugin now runs its own **live railway map** in the browser, like Create Tra
 - 🔌 **Dynmap is now optional.** Without Dynmap the web map and commands keep working; with it, stations and trains still appear on Dynmap.
 - 🎛️ **`dynmap-stations` / `dynmap-trains`** switches — both on by default.
 - 🌍 **English / Russian** — `language: "en"` or `"ru"` switches the website and command messages. Visitors can also add `?lang=en` / `?lang=ru` to the address.
-- 💬 **`/railmap`** (alias `/trainmap`) shows the map link to every player.
+- 💬 **`/railmap`** (alias `/trainmap`) gives every player a **clickable link** to the map, built from the address they used to join the server.
 - 🚫 **Blacklists** hide stations and trains on the web map too.
 - 🔄 **Automatic config upgrade** — the new settings are appended to your existing `config.yml`, with comments.
 

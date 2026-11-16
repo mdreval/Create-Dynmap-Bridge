@@ -150,17 +150,64 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
                 + " (trains every " + this.webTrainIntervalMs + " ms).");
     }
 
-    /** Map link for players: web-map.public-url or http://<ip>:<port>/. */
+    /** Map link for the console: web-map.public-url or http://<server-ip>:<port>/. */
     String webMapUrl() {
+        return this.webMapUrl(null);
+    }
+
+    /**
+     * Map link for a command sender.
+     * Order: web-map.public-url → the address the player used to join the server
+     * (e.g. "play.example.com") → server-ip from server.properties → "<server-ip>".
+     */
+    String webMapUrl(org.bukkit.command.CommandSender sender) {
         String url = this.getConfig().getString("web-map.public-url", "");
         if (url != null && !url.isBlank()) {
             return url;
         }
-        String ip = Bukkit.getIp();
-        if (ip == null || ip.isBlank() || ip.equals("0.0.0.0")) {
-            ip = "<server-ip>";
+        String host = sender == null ? null : joinHost(sender);
+        if (host == null) {
+            host = Bukkit.getIp();
         }
-        return "http://" + ip + ":" + this.getConfig().getInt("web-map.port", DEFAULT_WEB_PORT) + "/";
+        if (host == null || host.isBlank() || host.equals("0.0.0.0")) {
+            host = "<server-ip>";
+        }
+        if (host.indexOf(':') >= 0 && !host.startsWith("[")) {
+            host = "[" + host + "]"; // IPv6 literal
+        }
+        return "http://" + host + ":" + this.getConfig().getInt("web-map.port", DEFAULT_WEB_PORT) + "/";
+    }
+
+    /** The host name a player typed to join (Paper's Player#getVirtualHost), or null if unknown. */
+    private static String joinHost(org.bukkit.command.CommandSender sender) {
+        try {
+            Object address = Reflect.optionalCall(sender, "getVirtualHost");
+            if (!(address instanceof java.net.InetSocketAddress socket)) {
+                return null;
+            }
+            String host = socket.getHostString();
+            if (host == null) {
+                return null;
+            }
+            int marker = host.indexOf('\0'); // modded clients may append "\0FML…\0" to the host
+            if (marker >= 0) {
+                host = host.substring(0, marker);
+            }
+            while (host.endsWith(".")) {
+                host = host.substring(0, host.length() - 1);
+            }
+            host = host.trim();
+            boolean useless = host.isEmpty() || (host.equalsIgnoreCase("localhost") && !isLocalSender(sender));
+            return useless ? null : host;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static boolean isLocalSender(org.bukkit.command.CommandSender sender) {
+        Object address = Reflect.optionalCall(sender, "getAddress");
+        return address instanceof java.net.InetSocketAddress socket && socket.getAddress() != null
+                && socket.getAddress().isLoopbackAddress();
     }
 
     boolean isWebMapRunning() {
@@ -725,7 +772,7 @@ final class ListFileCommand {
     }
 }
 
-/** /railmap — shows the link to the live web map. */
+/** /railmap — shows a clickable link to the live web map. */
 final class RailMapCommand implements org.bukkit.command.CommandExecutor {
     private final CreateRailwaysDynmapBridge plugin;
 
@@ -740,10 +787,41 @@ final class RailMapCommand implements org.bukkit.command.CommandExecutor {
             sender.sendMessage(lang.get("map-disabled"));
             return true;
         }
-        sender.sendMessage(lang.get("map-link", this.plugin.webMapUrl()));
+        String url = this.plugin.webMapUrl(sender);
+        if (!(sender instanceof org.bukkit.entity.Player player) || !sendClickable(player, lang, url)) {
+            sender.sendMessage(lang.get("map-link", url));
+        }
         if (sender.hasPermission("create.stations.admin")) {
             sender.sendMessage(lang.get("map-viewers", this.plugin.webMapViewers()));
         }
         return true;
+    }
+
+    /**
+     * Sends the link as a clickable chat message through the vanilla /tellraw command.
+     * This works on every server type (Paper, Spigot, hybrids) without extra APIs.
+     */
+    private static boolean sendClickable(org.bukkit.entity.Player player, Lang lang, String url) {
+        if (!url.startsWith("http://") && !url.startsWith("https://") || url.contains("<")) {
+            return false; // not a real link (e.g. "<server-ip>"), plain text is clearer
+        }
+        try {
+            com.igrobar.createdynmap.web.Json json = new com.igrobar.createdynmap.web.Json(256);
+            json.beginArray();
+            json.value("");
+            json.beginObject().field("text", lang.get("map-link-prefix")).field("color", "gold").endObject();
+            json.beginObject()
+                    .field("text", url)
+                    .field("color", "aqua")
+                    .field("underlined", true);
+            json.key("clickEvent").beginObject().field("action", "open_url").field("value", url).endObject();
+            json.key("hoverEvent").beginObject().field("action", "show_text").field("contents", lang.get("map-link-hover")).endObject();
+            json.endObject();
+            json.endArray();
+            return org.bukkit.Bukkit.dispatchCommand(org.bukkit.Bukkit.getConsoleSender(),
+                    "minecraft:tellraw " + player.getUniqueId() + " " + json);
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 }

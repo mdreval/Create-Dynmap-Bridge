@@ -19,6 +19,8 @@ final class Lang {
             Map.entry("trains-read-error", "Could not read the train list: %s"),
             Map.entry("map-disabled", "The live train map is disabled."),
             Map.entry("map-link", "Train map: %s"),
+            Map.entry("map-link-prefix", "Train map: "),
+            Map.entry("map-link-hover", "Click to open the map in your browser"),
             Map.entry("map-viewers", "Viewers right now: %d"),
             Map.entry("default-train-name", "Train"),
             Map.entry("default-station-name", "Station"));
@@ -33,6 +35,8 @@ final class Lang {
             Map.entry("trains-read-error", "Не удалось прочитать список поездов: %s"),
             Map.entry("map-disabled", "Веб-карта поездов выключена."),
             Map.entry("map-link", "Карта поездов: %s"),
+            Map.entry("map-link-prefix", "Карта поездов: "),
+            Map.entry("map-link-hover", "Нажми, чтобы открыть карту в браузере"),
             Map.entry("map-viewers", "Сейчас карту смотрят: %d"),
             Map.entry("default-train-name", "Поезд"),
             Map.entry("default-station-name", "Станция"));

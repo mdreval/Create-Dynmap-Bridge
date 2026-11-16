@@ -72,7 +72,7 @@
 <td width="50%" valign="top">
 
 ### 🛠️ Admin tools
-- `/railmap` — link to the web map for everyone
+- `/railmap` — clickable link to the web map for everyone
 - `/getstations`, `/gettrains` — lists in game or console
 - `stations.txt` / `trains.txt` exports
 - Old `config.yml` files are upgraded automatically
@@ -241,7 +241,7 @@ web-map:
 | `enabled` | `true` | Turns the web map on or off |
 | `bind-address` | `0.0.0.0` | Network address to listen on (`0.0.0.0` = all) |
 | `port` | `25850` | Website port |
-| `public-url` | `""` | Link shown by `/railmap`; empty = `http://<server-ip>:<port>/` |
+| `public-url` | `""` | Link shown by `/railmap`; empty = built from the address the player joined with |
 | `title` | `""` | Website title; empty = default title in the selected language |
 | `train-update-interval-seconds` | `1` | How often train positions are sent (minimum 0.25) |
 | `network-check-interval-seconds` | `10` | How often tracks and stations are checked for changes |
@@ -351,7 +351,8 @@ web-map:
   # Remember to open this port in your firewall / hosting panel.
   bind-address: "0.0.0.0"
   port: 25850
-  # Link shown by /railmap. Leave empty to use http://<server-ip>:<port>/
+  # Link shown by /railmap. Leave empty to build it automatically from the address
+  # the player used to join (e.g. play.example.com) and the port above.
   # Example: "https://map.example.com/trains/"
   public-url: ""
   # Website title. Leave empty for the default title in the selected language.
@@ -396,9 +397,19 @@ worlds:
 
 | Command | Permission | Default | Description |
 | :--- | :--- | :---: | :--- |
-| `/railmap` (`/trainmap`) | `create.railmap` | everyone | Shows the link to the live web map |
-| `/getstations` | `create.stations.admin` | op | Lists all Create stations |
-| `/gettrains` | `create.stations.admin` | op | Lists all Create trains |
+| `/railmap` (`/trainmap`) | `create.railmap` | everyone | Shows a **clickable** link to the live web map (admins also see how many people are watching) |
+| `/getstations` | `create.stations.admin` | op | Lists all Create stations from `stations.txt` (count + names) |
+| `/gettrains` | `create.stations.admin` | op | Lists all Create trains from `trains.txt` (count + names) |
+
+**How `/railmap` builds the link:**
+1. `web-map.public-url`, if it is set;
+2. otherwise the address the player used to join — e.g. a player who joined `play.example.com` gets `http://play.example.com:25850/`;
+3. otherwise `server-ip` from `server.properties`.
+
+In game the link is clickable: click it and the map opens in the browser. In the console it is printed as plain text.
+
+> [!NOTE]
+> `/getstations` and `/gettrains` read the exported files, which are refreshed every `export-interval-seconds` (1 hour by default).
 
 <a id="troubleshooting"></a>
 
