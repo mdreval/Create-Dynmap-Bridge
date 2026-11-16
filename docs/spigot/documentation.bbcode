@@ -1,0 +1,332 @@
+[CENTER][SIZE=6][B]📖 Create Railways Dynmap Bridge — Documentation[/B][/SIZE]
+[I]Version 1.0.0.7 · Installation, configuration, commands and troubleshooting[/I][/CENTER]
+
+[COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR]
+
+[SIZE=5][B]⬇️ Installation[/B][/SIZE]
+[LIST=1]
+[*]Set up a compatible hybrid server core for Minecraft 1.21.1 (Youer, Arclight, Mohist, Magma…).
+[*]Install a compatible version of the [B]Create[/B] mod (6.0.x). [B]Steam 'n' Rails[/B] is optional.
+[*][I]Optional:[/I] install [B]Dynmap 3.7-beta8[/B] or newer if you want the Dynmap markers. The plugin works without Dynmap.
+[*]Drop [B]Create-Railways-Dynmap-Bridge-1.0.0.7.jar[/B] into the server's [B]plugins[/B] folder. [B]When updating, delete the old Create-Railways-Dynmap-Bridge jar first.[/B]
+[*]Open TCP port [B]25850[/B] in your firewall. On a hosting panel (Pterodactyl etc.) add an extra port allocation and use that number as [B]web-map.port[/B].
+[*]Start or restart the server. The console should show:
+[CODE]
+[Create-Railways-Dynmap-Bridge] Create Railways - Dynmap Bridge 1.0.0.7 enabled; Dynmap stations: every 60s, Dynmap trains: every 5s.
+[Create-Railways-Dynmap-Bridge] Web map started on port 25850: http://<server-ip>:25850/ (trains every 1000 ms).
+[/CODE]
+Without Dynmap you will see [B]Dynmap is not installed — Dynmap markers are off[/B] instead. That is fine.
+[*]Open [B]http://<server-ip>:25850/[/B] in a browser (or type [B]/railmap[/B] in game) and check your Dynmap for the markers.
+[/LIST]
+
+[I]Updating from an older version? The new settings are appended to your existing config.yml automatically, with comments. Nothing else in the file is changed.[/I]
+
+[COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR]
+
+[SIZE=5][B]⚙️ Configuration[/B][/SIZE]
+
+File location: [B]plugins/Create-Railways-Dynmap-Bridge/config.yml[/B]
+Changes take effect after a server restart. Blacklist files are re-read automatically.
+
+[SIZE=4][B]🌍 Language[/B][/SIZE]
+[CODE]
+# Language of the web map and of the plugin messages: "en" (English) or "ru" (Russian).
+language: "en"
+[/CODE]
+Visitors can also switch the website language for themselves by adding [B]?lang=en[/B] or [B]?lang=ru[/B] to the address.
+
+[SIZE=4][B]📍 Dynmap markers[/B][/SIZE]
+[CODE]
+# Station icon
+station-icon: "bank"
+
+# Train icon
+train-icon: "bricks"
+
+# How often train markers are updated on Dynmap, in seconds (default: 5).
+train-update-interval-seconds: 5
+
+# How often station markers are updated on Dynmap, in seconds (default: 60).
+station-update-interval-seconds: 60
+
+# Show Create stations on the Dynmap map (default: true).
+dynmap-stations: true
+# Show Create trains on the Dynmap map (default: true).
+dynmap-trains: true
+[/CODE]
+[LIST]
+[*][B]station-icon[/B] / [B]train-icon[/B] — Dynmap icon used for stations and trains (see the icon list below).
+[*][B]train-update-interval-seconds[/B] — how often train markers are updated (default 5). Lower values make the map more up to date but add work for the server.
+[*][B]station-update-interval-seconds[/B] — how often station markers are updated (default 60). Stations rarely change, so this can stay high.
+[*][B]dynmap-stations[/B] / [B]dynmap-trains[/B] — turn station or train markers on/off. If you use the web map, you can turn Dynmap train markers off.
+[/LIST]
+If Dynmap is not installed, the markers are switched off automatically and everything else keeps working.
+
+[SIZE=4][B]🗺️ Live web map[/B][/SIZE]
+[CODE]
+web-map:
+  # Turn the web map on/off (default: true).
+  enabled: true
+  # Network address and port of the web map. 0.0.0.0 = all addresses.
+  bind-address: "0.0.0.0"
+  port: 25850
+  # Link shown by /railmap. Leave empty to build it automatically from the address
+  # the player used to join (e.g. play.example.com) and the port above.
+  public-url: ""
+  # Website title. Leave empty for the default title in the selected language.
+  title: ""
+  # How often train positions are sent to the website, in seconds (default: 1, minimum 0.25).
+  train-update-interval-seconds: 1
+  # How often the server checks whether tracks or stations changed, in seconds (default: 10).
+  network-check-interval-seconds: 10
+  # Track geometry is rebuilt when the network changes, and in any case every N seconds (default: 300).
+  network-refresh-seconds: 300
+  # Maximum number of browser tabs watching the map at the same time (default: 50).
+  max-viewers: 50
+  # Show station names on the map by default.
+  show-station-labels: true
+  # Dimension opened first.
+  default-dimension: "minecraft:overworld"
+  # Optional link to your Dynmap shown on the website (empty = hidden).
+  dynmap-url: ""
+  # Custom names of dimensions on the website (vanilla dimensions are already named).
+  dimensions: {}
+[/CODE]
+[LIST]
+[*][B]enabled[/B] — turns the web map on or off.
+[*][B]bind-address[/B], [B]port[/B] — where the website listens. Default [B]0.0.0.0:25850[/B].
+[*][B]public-url[/B] — the link [B]/railmap[/B] shows. Leave empty: the link is built from the address the player joined with (a player who joined [B]play.example.com[/B] gets [B]http://play.example.com:25850/[/B]). Set it when the map runs behind a domain or nginx, e.g. [B]"https://map.example.com/trains/"[/B].
+[*][B]title[/B] — website title; empty = default title in the selected language.
+[*][B]train-update-interval-seconds[/B] — how often train positions are sent. Trains are animated smoothly between updates in the browser, so 1–2 seconds looks fine.
+[*][B]network-check-interval-seconds[/B] — how often tracks and stations are checked for changes. New tracks appear within this time.
+[*][B]network-refresh-seconds[/B] — track geometry is rebuilt at least this often, even without changes.
+[*][B]max-viewers[/B] — maximum simultaneous browser tabs.
+[*][B]show-station-labels[/B] — station names visible by default.
+[*][B]default-dimension[/B] — dimension opened first.
+[*][B]dynmap-url[/B] — adds an "Open Dynmap" link to the website, e.g. [B]"http://example.com:8123/"[/B].
+[*][B]dimensions[/B] — custom or modded dimension names, e.g. [B]"twilightforest:twilight_forest": "Twilight Forest"[/B].
+[/LIST]
+
+[SPOILER="How the web map stays light on the server"]
+[LIST]
+[*][B]Copy train positions[/B] (two points per carriage) — main thread, every 1 s (configurable).
+[*][B]Check whether tracks/stations changed[/B] — main thread, every 10 s.
+[*][B]Rebuild track geometry[/B] — main thread, only on change (and at least every 5 minutes).
+[*][B]Build JSON and serve the website[/B] — separate threads.
+[*][B]Send updates to browsers[/B] — Server-Sent Events, only what changed.
+[/LIST]
+All reflection lookups are cached, so even on hybrid servers such as Youer the per-update cost stays tiny.
+[/SPOILER]
+
+[SPOILER="Running the web map behind nginx / a domain"]
+The map uses Server-Sent Events, which must not be buffered:
+[CODE]
+location /trains/ {
+    proxy_pass http://127.0.0.1:25850/;
+    proxy_buffering off;
+    proxy_read_timeout 1h;
+}
+[/CODE]
+Then set [B]web-map.public-url: "https://example.com/trains/"[/B] so [B]/railmap[/B] shows the right link.
+[/SPOILER]
+
+[SPOILER="Custom website files"]
+Files placed in [B]plugins/Create-Railways-Dynmap-Bridge/web/[/B] replace the built-in ones with the same name — for example [B]index.html[/B], [B]assets/app.css[/B] or [B]assets/app.js[/B]. Delete them to go back to the built-in look.
+[/SPOILER]
+
+[SIZE=4][B]🎨 Web map legend[/B][/SIZE]
+[LIST]
+[*][COLOR=#AAB4C3][B]━━[/B][/COLOR] Standard Create track
+[*][COLOR=#7FD1B9][B]━━[/B][/COLOR] Narrow gauge (Steam 'n' Rails)
+[*][COLOR=#F2C14E][B]━━[/B][/COLOR] Wide gauge (Steam 'n' Rails)
+[*][COLOR=#C792EA][B]━━[/B][/COLOR] Monorail (Steam 'n' Rails)
+[*][B]┅┅[/B] Dashed line — phantom (invisible) track
+[*][COLOR=#F0A23B][B]●[/B][/COLOR] moving / [COLOR=#5AA9E6][B]●[/B][/COLOR] stopped / [COLOR=#E5534B][B]●[/B][/COLOR] derailed train
+[*][COLOR=#B07CFF][B]○[/B][/COLOR] Portal to another dimension — click to jump there
+[/LIST]
+
+[SIZE=4][B]🌐 World mapping[/B][/SIZE]
+[CODE]
+worlds:
+  minecraft/old: old
+  minecraft/overworld: Virus
+[/CODE]
+[LIST]
+[*][B]worlds[/B] — maps Create dimension identifiers to existing server world names (used for the Dynmap markers).
+[*]In this example [B]minecraft/old[/B] is mapped to the world [B]old[/B] and [B]minecraft/overworld[/B] to the world [B]Virus[/B].
+[/LIST]
+[I]Note: Virus and old are example world names. The plugin detects the worlds of your server automatically and writes them to the configuration file. In most cases no manual configuration is required. Manual overrides help when the detected world does not match your intention (for example, when several worlds correspond to the same dimension).[/I]
+
+[SIZE=4][B]🚫 Blacklists[/B][/SIZE]
+[LIST]
+[*][B]blacklist-stations.yml[/B] — stations hidden on Dynmap [B]and[/B] on the web map.
+[*][B]blacklist-trains.yml[/B] — trains hidden on Dynmap [B]and[/B] on the web map.
+[/LIST]
+[CODE]
+trains:
+  - "Service train"
+  - "bus:Depot"
+[/CODE]
+Names are matched exactly (case-insensitive). Separate files let you manage stations and trains independently — useful on large networks where specific objects should be hidden without disabling the whole map. Changes are picked up automatically, no restart needed.
+
+[SIZE=4][B]📁 File exports[/B][/SIZE]
+[B]stations.txt[/B] and [B]trains.txt[/B] in the plugin folder list all station and train names, one per line. They are rewritten every [B]export-interval-seconds[/B]:
+[CODE]
+# Export interval in seconds for stations.txt and trains.txt (default: 3600 = 1 hour)
+export-interval-seconds: 3600
+[/CODE]
+
+[COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR]
+
+[SIZE=5][B]💻 Commands & Permissions[/B][/SIZE]
+[LIST]
+[*][B]/railmap[/B] (alias [B]/trainmap[/B]) — permission [B]create.railmap[/B], default: everyone.
+Shows a [B]clickable[/B] link to the web map. Admins also see how many people are watching the map.
+[*][B]/getstations[/B] — permission [B]create.stations.admin[/B], default: op.
+Lists all Create stations from stations.txt (count + names).
+[*][B]/gettrains[/B] — permission [B]create.stations.admin[/B], default: op.
+Lists all Create trains from trains.txt (count + names).
+[/LIST]
+[B]How /railmap builds the link:[/B]
+[LIST=1]
+[*][B]web-map.public-url[/B], if it is set;
+[*]otherwise the address the player used to join the server;
+[*]otherwise [B]server-ip[/B] from server.properties.
+[/LIST]
+[I]/getstations and /gettrains read the exported files, which are refreshed every export-interval-seconds (1 hour by default).[/I]
+
+[COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR]
+
+[SIZE=5][B]⚑ Dynmap Markers[/B][/SIZE]
+
+Create-Railways-Dynmap-Bridge adds custom markers for Create's railway system to the server's Dynmap.
+
+[ATTACH]986473[/ATTACH] [ATTACH]986474[/ATTACH]
+
+[B]Railway stations:[/B]
+[LIST]
+[*]Use a configurable station icon.
+[*]Help players locate railway stations across the server.
+[*]Displayed dynamically from data obtained directly from the Create mod.
+[*]Updated every 60 seconds by default (station-update-interval-seconds).
+[/LIST]
+[B]Trains:[/B]
+[LIST]
+[*]Use a configurable train icon.
+[*]Show train locations in near real time (every 5 seconds by default, train-update-interval-seconds).
+[*]Make it much easier to navigate the server's railway network.
+[/LIST]
+
+[B]Available Dynmap icons[/B]
+Set [B]station-icon[/B] and [B]train-icon[/B] in config.yml to any of these built-in Dynmap icons:
+[QUOTE]anchor, bank, basket, bed, beer, bighouse, blueflag, bomb, bookshelf, bricks, bronzemedal, bronzestar, building, cake, camera, cart, caution, chest, church, coins, comment, compass, construction, cross, cup, cutlery, default, diamond, dog, door, down, drink, exclamation, factory, fire, flower, gear, goldmedal, goldstar, greenflag, hammer, heart, house, key, king, left, lightbulb, lighthouse, lock, minecart, offlineuser, orangeflag, pin, pinkflag, pirateflag, pointdown, pointleft, pointright, pointup, portal, purpleflag, queen, redflag, right, ruby, scales, shield, sign, silvermedal, silverstar, skull, star, sun, temple, theater, tornado, tower, tree, truck, up, walk, warning, world, wrench.[/QUOTE]
+
+[ATTACH=full]987091[/ATTACH]
+
+[SIZE=4][B]♻️ Marker management[/B][/SIZE]
+[LIST]
+[*]Railway markers are created and synchronized with Dynmap automatically.
+[*]A marker is only updated when a train or station actually changes (position, name or description).
+[*]Markers of removed stations and trains are cleaned up automatically (train markers after 3 missed updates).
+[*]Blacklists hide unwanted stations and trains without disabling the whole railway layer.
+[*]Markers of this plugin live in their own marker set and never touch other Dynmap markers.
+[*]After [B]/dynmap reload[/B] the markers are recreated automatically within one update.
+[/LIST]
+
+[COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR]
+
+[SIZE=5][B]🩺 Troubleshooting[/B][/SIZE]
+
+[SPOILER="The web map does not open"]
+[LIST]
+[*]Check the console for [B]Web map started on port …[/B]. If you see [B]Web map could not start … Is the port already in use?[/B], choose another [B]web-map.port[/B].
+[*]Make sure the port is open in the firewall / hosting panel and that you use the server's [B]public[/B] IP, not localhost.
+[*]Check that [B]web-map.enabled[/B] is [B]true[/B].
+[/LIST]
+[/SPOILER]
+
+[SPOILER="Tracks or stations are missing"]
+[LIST]
+[*]Select the right dimension in the side panel of the website.
+[*]New tracks appear within network-check-interval-seconds (10 s by default).
+[*]Check the blacklists — blacklisted stations and trains are hidden on the web map too.
+[*]Look for console lines starting with [B]Web map:[/B] — they name the part of Create that could not be read.
+[/LIST]
+[/SPOILER]
+
+[SPOILER="Trains do not move / update only on page reload"]
+[LIST]
+[*]Behind nginx or another proxy, disable buffering for the map ([B]proxy_buffering off;[/B]). Cloudflare and similar CDNs may also buffer Server-Sent Events — use a plain DNS record for the map.
+[*]The status dot in the side panel shows the connection: green = online, red = reconnecting.
+[/LIST]
+[/SPOILER]
+
+[SPOILER="Dynmap markers do not appear"]
+[LIST]
+[*]Dynmap must be installed as a server plugin. Without it the plugin logs [B]Dynmap is not installed — Dynmap markers are off[/B].
+[*]Check [B]dynmap-stations[/B] / [B]dynmap-trains[/B] in config.yml.
+[*]Check the [B]worlds[/B] mapping if markers appear in the wrong world.
+[/LIST]
+[/SPOILER]
+
+[SPOILER="The website language did not change"]
+Restart the server after changing [B]language[/B], then reload the page with Ctrl + F5. A single visitor can also use [B]?lang=en[/B] / [B]?lang=ru[/B].
+[/SPOILER]
+
+[COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR]
+
+[SIZE=5][B]★ Version History[/B][/SIZE]
+
+[SIZE=4][B]What's New 1.0.0.7[/B][/SIZE]
+[LIST]
+[*][B]Live web map[/B] built into the plugin: tracks with curves, Steam 'n' Rails gauges, portals, stations and smoothly moving trains; train list with search and "follow".
+[*][B]Dynmap is optional[/B] — without it the web map and commands keep working.
+[*][B]dynmap-stations[/B] / [B]dynmap-trains[/B] switches (both on by default).
+[*][B]English / Russian[/B] localization of the website and messages.
+[*][B]/railmap[/B] — clickable link built from the address the player used to join.
+[*]Blacklists now apply to the web map too.
+[*]Existing config.yml files get the new settings appended automatically.
+[/LIST]
+
+[SIZE=4][B]What's New 1.0.0.6[/B][/SIZE]
+[LIST]
+[*]Fixed once-per-second server lag spikes: the live scan ran every second on the main thread and repeated slow reflection lookups each time. On hybrid servers such as Youer one scan could freeze the server for 200–470 ms, so trains and mobs stuttered for players. Lookups are now cached and reused, and server API calls are made directly.
+[*]Separate update intervals: trains are updated every 5 seconds and stations every 60 seconds by default (train-update-interval-seconds and station-update-interval-seconds).
+[*]Change-only marker updates: a marker is only touched when its position, name or description actually changes.
+[*]Faster blacklist handling: blacklist files are checked once per update instead of once per marker.
+[*]Stale marker cleanup fixed: removed stations and trains now disappear from the map (train markers after 3 missed updates).
+[/LIST]
+
+[SIZE=4][B]What's New 1.0.0.5[/B][/SIZE]
+[LIST]
+[*]NeoForge 1.21.1 (Build 265) compatibility fix: fixed the startup crash caused by an IllegalArgumentException / argument type mismatch. The task scheduler now uses direct BukkitScheduler calls instead of reflection, ensuring stable operation on NeoForge 21.1.265 and earlier versions.
+[/LIST]
+
+[SIZE=4][B]What's New 1.0.0.4[/B][/SIZE]
+[LIST]
+[*]Configurable file export interval: added export-interval-seconds (default: 3600 s) to control how often stations.txt and trains.txt are written.
+[*]Performance optimization: separated live Dynmap marker scans from background file export timers to reduce disk I/O.
+[*]Comment preservation: config.yml keeps all helpful comments and icon listings.
+[/LIST]
+
+[SIZE=4][B]What's New 1.0.0.3[/B][/SIZE]
+[LIST]
+[*]Automatic train list export (trains.txt) to plugins/Create-Railways-Dynmap-Bridge/trains.txt.
+[*]New command /gettrains (permission create.stations.admin) to print the list and count of all trains in chat or console.
+[/LIST]
+
+[SIZE=4][B]What's New 1.0.0.2[/B][/SIZE]
+[LIST]
+[*]Automatic station export (stations.txt), one station name per line.
+[*]New command /getstations (permission create.stations.admin) to view the list and count of all stations in chat or console.
+[/LIST]
+
+[SIZE=4][B]What's New in Version 1.0.0.1[/B][/SIZE]
+[LIST]
+[*]Full integration between the Create railway system and Dynmap.
+[*]Track layout and station mapping.
+[*]Real-time train location markers.
+[*]Customizable station and train icons.
+[*]Automatic dimension tracking and world matching, with manual overrides.
+[*]Live status updates for operating trains and stations.
+[/LIST]

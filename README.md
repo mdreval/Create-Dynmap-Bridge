@@ -6,19 +6,9 @@
 
 **Live web map and Dynmap markers for Create & Steam 'n' Rails railways**
 
-[![Version](https://img.shields.io/badge/version-1.0.0.7-f0a23b?style=for-the-badge)](RELEASE_NOTES.md)
-[![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62b47a?style=for-the-badge&logo=minecraft&logoColor=white)](#requirements)
-[![Java](https://img.shields.io/badge/Java-21%2B-5382a1?style=for-the-badge&logo=openjdk&logoColor=white)](#requirements)
-[![Create](https://img.shields.io/badge/Create-6.0.x-c99b5a?style=for-the-badge)](https://modrinth.com/mod/create)
-[![Dynmap](https://img.shields.io/badge/Dynmap-optional-6c7a89?style=for-the-badge)](#dynmap-markers)
+[![Version](https://img.shields.io/badge/version-1.0.0.7-f0a23b?style=for-the-badge)](RELEASE_NOTES.md) [![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62b47a?style=for-the-badge&logo=minecraft&logoColor=white)](#requirements) [![Java](https://img.shields.io/badge/Java-21%2B-5382a1?style=for-the-badge&logo=openjdk&logoColor=white)](#requirements) [![Create](https://img.shields.io/badge/Create-6.0.x-c99b5a?style=for-the-badge)](https://modrinth.com/mod/create) [![Dynmap](https://img.shields.io/badge/Dynmap-optional-6c7a89?style=for-the-badge)](#dynmap-markers)
 
-[Features](#features) •
-[Web map](#web-map) •
-[Installation](#installation) •
-[Configuration](#configuration) •
-[Commands](#commands) •
-[Troubleshooting](#troubleshooting) •
-[Version history](#version-history)
+[Features](#features) • [Web map](#web-map) • [Installation](#installation) • [Configuration](#configuration) • [Commands](#commands) • [Troubleshooting](#troubleshooting) • [Version history](#version-history)
 
 </div>
 

@@ -1,0 +1,165 @@
+[CENTER][SIZE=7][B]🚆 Create Railways Dynmap Bridge[/B][/SIZE]
+[SIZE=4][I]Live web map and Dynmap markers for Create & Steam 'n' Rails railways[/I][/SIZE]
+
+[SIZE=3][COLOR=#F0A23B][B]v1.0.0.7[/B][/COLOR]  •  [B]Minecraft 1.21.1[/B]  •  [B]Java 21+[/B]  •  [B]Create 6.0.x[/B]  •  [COLOR=#46C17A][B]Dynmap optional[/B][/COLOR][/SIZE]
+
+[IMG]https://raw.githubusercontent.com/mdreval/Create-Dynmap-Bridge/main/docs/images/web-map-overview.jpg[/IMG]
+[I]The built-in live web map — every track, station and train of the server in one browser tab.[/I][/CENTER]
+
+Create-Railways-Dynmap-Bridge connects the Create mod's railway system with the web. It gives your server [B]two ways[/B] to watch the railway network:
+[LIST]
+[*][B]🗺️ Live web map[/B] — a lightweight website built into the plugin (like Create Track Map or MTR): the whole track network, stations and [B]smoothly moving trains[/B]. No Dynmap required.
+[*][B]📍 Dynmap markers[/B] — Create stations and trains on your existing Dynmap, with configurable icons.
+[/LIST]
+Use both together, or only one of them — each part can be switched off in [B]config.yml[/B].
+
+[CENTER][COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR][/CENTER]
+
+[SIZE=5][B]✨ Features[/B][/SIZE]
+
+[SIZE=4][B]🗺️ Live web map[/B] [COLOR=#F0A23B][I](new in 1.0.0.7)[/I][/COLOR][/SIZE]
+[LIST]
+[*]Whole track network, [B]straight and curved[/B].
+[*][B]Steam 'n' Rails[/B] narrow gauge, wide gauge and monorail in their own colours; phantom (invisible) tracks shown dashed.
+[*]Stations — click one to see which trains are there and which are on their way.
+[*][B]Smoothly animated trains[/B], coloured by state: moving / stopped / derailed.
+[*]Train list with [B]search[/B], speed, current station and destination.
+[*][B]"Follow this train"[/B] — the map keeps the train in view.
+[*]Portals between dimensions — click to jump to the other side.
+[*]Shareable links — the page address keeps the current view.
+[*][B]English / Russian[/B] interface.
+[*]Optional "Open Dynmap" link right on the website.
+[/LIST]
+
+[CENTER][IMG]https://raw.githubusercontent.com/mdreval/Create-Dynmap-Bridge/main/docs/images/web-map-monorail.jpg[/IMG]
+[I]A train on a Steam 'n' Rails monorail next to standard and phantom tracks.[/I]
+
+[IMG]https://raw.githubusercontent.com/mdreval/Create-Dynmap-Bridge/main/docs/images/web-map-tram-lines.jpg[/IMG]
+[I]A narrow gauge tram line with its stations and a tram on the way.[/I][/CENTER]
+
+[SIZE=4][B]📍 Dynmap markers[/B][/SIZE]
+[LIST]
+[*]Automatically displays Create railway stations on Dynmap.
+[*]Displays Create trains in near real time (every 5 seconds by default, configurable).
+[*]Configurable station and train marker icons.
+[*]Stations and trains can be switched on/off separately ([B]dynmap-stations[/B], [B]dynmap-trains[/B]).
+[*]Automatic Create dimension → server world mapping, with manual overrides.
+[*]Markers are only updated when something changes; removed stations and trains are cleaned up automatically.
+[/LIST]
+
+[CENTER][ATTACH=full]986488[/ATTACH]
+
+[ATTACH=full]986472[/ATTACH]
+[I]Create stations and trains on Dynmap.[/I][/CENTER]
+
+[SIZE=4][B]⚡ Built for live servers[/B][/SIZE]
+[LIST]
+[*]The main server thread only copies numbers — two points per carriage, once per second.
+[*]Track geometry is rebuilt [B]only when the network changes[/B].
+[*]The website runs in separate (virtual) threads and every viewer receives [B]only what changed[/B].
+[*]All reflection lookups are cached — safe even on hybrid servers such as Youer.
+[/LIST]
+
+[SIZE=4][B]🛠️ Admin tools[/B][/SIZE]
+[LIST]
+[*][B]/railmap[/B] — a clickable link to the web map for every player.
+[*][B]/getstations[/B], [B]/gettrains[/B] — station and train lists in game or in the console.
+[*]Periodic [B]stations.txt[/B] / [B]trains.txt[/B] exports.
+[*]Separate station and train blacklists — hidden on Dynmap [B]and[/B] on the web map.
+[*]Old config.yml files are upgraded automatically — new settings are added with comments.
+[/LIST]
+
+[CENTER][COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR][/CENTER]
+
+[SIZE=5][B]☑️ Requirements[/B][/SIZE]
+[LIST]
+[*][B]Minecraft:[/B] 1.21.1 — main target version.
+[*][B]Server software:[/B] a hybrid NeoForge + Bukkit server (Youer, Arclight, Mohist, Magma, etc.).
+[*][B]Create:[/B] 6.0.x — [B]required[/B].
+[*][B]Steam 'n' Rails:[/B] optional — its track types are shown automatically.
+[*][B]Dynmap:[/B] [COLOR=#46C17A][B]optional[/B][/COLOR] — only needed for the Dynmap markers (3.7-beta8 or newer). Without Dynmap the web map, commands and exports keep working.
+[*][B]Java:[/B] 21+ (any normal JDK/JRE).
+[/LIST]
+
+[I]Note: a plain Bukkit, Paper or Spigot server without the Create mod has no railway data, so the plugin will not work there.[/I]
+
+[SIZE=5][B]⬇️ Quick start[/B][/SIZE]
+[LIST=1]
+[*]Drop [B]Create-Railways-Dynmap-Bridge-1.0.0.7.jar[/B] into the [B]plugins[/B] folder. [B]When updating, delete the old jar first.[/B]
+[*]Open TCP port [B]25850[/B] in your firewall / hosting panel (or set another port in config.yml).
+[*]Start the server — the console shows [B]Web map started on port 25850[/B].
+[*]Open [B]http://<server-ip>:25850/[/B] in a browser, or type [B]/railmap[/B] in game.
+[/LIST]
+Full installation and configuration guide: see the [B]Documentation[/B] tab.
+
+[SIZE=5][B]💻 Commands[/B][/SIZE]
+[LIST]
+[*][B]/railmap[/B] (alias [B]/trainmap[/B]) — clickable link to the web map. Permission [B]create.railmap[/B] (everyone).
+[*][B]/getstations[/B] — list of all Create stations. Permission [B]create.stations.admin[/B] (op).
+[*][B]/gettrains[/B] — list of all Create trains. Permission [B]create.stations.admin[/B] (op).
+[/LIST]
+
+[CENTER][COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR][/CENTER]
+
+[SIZE=5][B]🚀 What's New in 1.0.0.7[/B][/SIZE]
+[LIST]
+[*][B]Live web map[/B] built into the plugin: tracks with curves, Steam 'n' Rails gauges, portals, stations and smoothly moving trains; train list with search and "follow".
+[*][B]Dynmap is optional[/B] — without it the web map and commands keep working.
+[*][B]dynmap-stations[/B] / [B]dynmap-trains[/B] switches (both on by default).
+[*][B]English / Russian[/B] localization of the website and messages ([B]language: "en"[/B] or [B]"ru"[/B]).
+[*][B]/railmap[/B] — clickable link built from the address the player used to join the server.
+[*]Blacklists now hide stations and trains on the web map too.
+[*]Existing config.yml files get the new settings appended automatically.
+[/LIST]
+
+[SPOILER="Older versions"]
+[B]What's New 1.0.0.6[/B]
+[LIST]
+[*][B]Fixed once-per-second server lag spikes:[/B] the live scan ran every second on the main thread and repeated slow reflection lookups each time. On hybrid servers such as Youer one scan could freeze the server for 200–470 ms, so trains and mobs stuttered for players. Lookups are now cached and reused, and server API calls are made directly.
+[*][B]Separate update intervals:[/B] trains every 5 seconds and stations every 60 seconds by default (train-update-interval-seconds, station-update-interval-seconds).
+[*][B]Change-only marker updates:[/B] a marker is only touched when its position, name or description actually changes.
+[*][B]Faster blacklist handling:[/B] blacklist files are checked once per update instead of once per marker.
+[*][B]Stale marker cleanup fixed:[/B] removed stations and trains now disappear from the map (train markers after 3 missed updates).
+[/LIST]
+
+[B]What's New 1.0.0.5[/B]
+[LIST]
+[*][B]NeoForge 1.21.1 (Build 265) compatibility fix:[/B] fixed the startup crash caused by an IllegalArgumentException / argument type mismatch. The task scheduler now uses direct BukkitScheduler calls instead of reflection.
+[/LIST]
+
+[B]What's New 1.0.0.4[/B]
+[LIST]
+[*][B]Configurable file export interval:[/B] export-interval-seconds (default 3600 s) controls how often stations.txt and trains.txt are written.
+[*][B]Performance:[/B] live Dynmap scans separated from the file export timer to reduce disk I/O.
+[*][B]Comment preservation:[/B] config.yml keeps all comments and the icon list.
+[/LIST]
+
+[B]What's New 1.0.0.3[/B]
+[LIST]
+[*][B]trains.txt export[/B] and the [B]/gettrains[/B] command.
+[/LIST]
+
+[B]What's New 1.0.0.2[/B]
+[LIST]
+[*][B]stations.txt export[/B] and the [B]/getstations[/B] command.
+[/LIST]
+
+[B]What's New 1.0.0.1[/B]
+[LIST]
+[*]Integration between the Create railway system and Dynmap: stations, real-time train markers, configurable icons, automatic dimension → world mapping with manual overrides.
+[/LIST]
+[/SPOILER]
+
+[CENTER][COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR][/CENTER]
+
+[SIZE=4][B]🔗 Also by the author[/B][/SIZE]
+[B][URL='https://www.spigotmc.org/resources/mtr-dynmap-bridge.139114/']MTR-Dynmap Bridge[/URL][/B] — the same idea for the Minecraft Transit Railway mod.
+[IMG]https://www.spigotmc.org/attachments/001-jpg.983202/[/IMG]
+
+[SIZE=5][B]© License[/B][/SIZE]
+Copyright © 2026 Igrobar. All rights reserved.
+[LIST]
+[*]Free to use on any Minecraft server, including public and commercial servers.
+[*]Re-uploading, selling or publishing modified versions requires the author's permission.
+[/LIST]
+[SIZE=2][I]The web map uses Leaflet (BSD-2-Clause). The idea of a live map is inspired by Create Track Map (MIT); the web map code is written from scratch for this plugin.[/I][/SIZE]

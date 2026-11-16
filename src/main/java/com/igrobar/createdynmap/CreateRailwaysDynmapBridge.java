@@ -819,7 +819,9 @@ final class RailMapCommand implements org.bukkit.command.CommandExecutor {
             json.endObject();
             json.endArray();
             return org.bukkit.Bukkit.dispatchCommand(org.bukkit.Bukkit.getConsoleSender(),
-                    "minecraft:tellraw " + player.getUniqueId() + " " + json);
+                    // The player name, not the UUID: vanilla treats a UUID as an entity selector,
+                    // which /tellraw rejects ("only players").
+                    "minecraft:tellraw " + player.getName() + " " + json);
         } catch (Throwable ignored) {
             return false;
         }

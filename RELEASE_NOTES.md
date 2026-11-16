@@ -4,10 +4,7 @@
 
 ### The live web map update
 
-![Version](https://img.shields.io/badge/version-1.0.0.7-f0a23b?style=for-the-badge)
-![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62b47a?style=for-the-badge&logo=minecraft&logoColor=white)
-![Java](https://img.shields.io/badge/Java-21%2B-5382a1?style=for-the-badge&logo=openjdk&logoColor=white)
-![Dynmap](https://img.shields.io/badge/Dynmap-optional-6c7a89?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.0.0.7-f0a23b?style=for-the-badge) ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62b47a?style=for-the-badge&logo=minecraft&logoColor=white) ![Java](https://img.shields.io/badge/Java-21%2B-5382a1?style=for-the-badge&logo=openjdk&logoColor=white) ![Dynmap](https://img.shields.io/badge/Dynmap-optional-6c7a89?style=for-the-badge)
 
 </div>
 

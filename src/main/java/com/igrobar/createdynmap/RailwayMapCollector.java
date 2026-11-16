@@ -1,6 +1,5 @@
 package com.igrobar.createdynmap;
 
-import com.igrobar.createdynmap.web.MapData;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -8,6 +7,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import com.igrobar.createdynmap.web.MapData;
 
 /**
  * Collects data for the web map. All methods are called ONLY from the server main thread,
