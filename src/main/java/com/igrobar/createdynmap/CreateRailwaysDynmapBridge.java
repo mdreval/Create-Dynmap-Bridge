@@ -1,8 +1,5 @@
 package com.igrobar.createdynmap;
 
-import com.igrobar.createdynmap.web.Json;
-import com.igrobar.createdynmap.web.MapData;
-import com.igrobar.createdynmap.web.WebMapServer;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -15,12 +12,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
+
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitScheduler;
+
+import com.igrobar.createdynmap.web.Json;
+import com.igrobar.createdynmap.web.MapData;
+import com.igrobar.createdynmap.web.WebMapServer;
 
 public final class CreateRailwaysDynmapBridge extends JavaPlugin {
     /** How many updates in a row a train may be missing before its marker is removed. */

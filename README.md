@@ -6,7 +6,7 @@
 
 **Live web map and Dynmap markers for Create & Steam 'n' Rails railways**
 
-[![Version](https://img.shields.io/badge/version-1.0.0.7-f0a23b?style=for-the-badge)](RELEASE_NOTES.md) [![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62b47a?style=for-the-badge&logo=minecraft&logoColor=white)](#requirements) [![Java](https://img.shields.io/badge/Java-21%2B-5382a1?style=for-the-badge&logo=openjdk&logoColor=white)](#requirements) [![Create](https://img.shields.io/badge/Create-6.0.x-c99b5a?style=for-the-badge)](https://modrinth.com/mod/create) [![Dynmap](https://img.shields.io/badge/Dynmap-optional-6c7a89?style=for-the-badge)](#dynmap-markers)
+[![Version](https://img.shields.io/badge/version-1.0.0.8-f0a23b?style=for-the-badge)](RELEASE_NOTES.md) [![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62b47a?style=for-the-badge&logo=minecraft&logoColor=white)](#requirements) [![Java](https://img.shields.io/badge/Java-21%2B-5382a1?style=for-the-badge&logo=openjdk&logoColor=white)](#requirements) [![Create](https://img.shields.io/badge/Create-6.0.x-c99b5a?style=for-the-badge)](https://modrinth.com/mod/create) [![Dynmap](https://img.shields.io/badge/Dynmap-optional-6c7a89?style=for-the-badge)](#dynmap-markers)
 
 [Features](#features) • [Web map](#web-map) • [Installation](#installation) • [Configuration](#configuration) • [Commands](#commands) • [Troubleshooting](#troubleshooting) • [Version history](#version-history)
 
@@ -33,7 +33,7 @@
 - **Steam 'n' Rails** narrow gauge, wide gauge and monorail in their own colours
 - Stations, portals between dimensions
 - **Smoothly moving trains**, coloured by state
-- Train list with **search** and **"follow this train"**
+- Train list per dimension with **search** and **"follow this train"**
 - English 🇬🇧 / Russian 🇷🇺 interface
 
 </td>
@@ -82,6 +82,14 @@ Open `http://<server-ip>:25850/` in any browser (or type `/railmap` in game). No
   <img src="docs/images/web-map-tram-lines.jpg" alt="Narrow gauge tram line with stations and a tram" width="49%" />
   <br/>
   <sub><i>Left: a train on a Steam 'n' Rails monorail. Right: a narrow gauge tram line. Dashed lines are phantom (invisible) tracks.</i></sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/station-popup-at-station.jpg" alt="Station window: a train standing at the station" height="230" />
+  &nbsp;
+  <img src="docs/images/station-popup-heading-here.jpg" alt="Station window: a train heading to the station" height="230" />
+  <br/>
+  <sub><i>Click a station: trains standing there and trains heading to it, with distance and speed. Click a train to follow it.</i></sub>
 </p>
 
 | On the map | Meaning |
@@ -161,12 +169,12 @@ Files placed in `plugins/Create-Railways-Dynmap-Bridge/web/` replace the built-i
 
 ## ⚙️ Installation
 
-1. **Download** `Create-Railways-Dynmap-Bridge-1.0.0.7.jar` from the [Releases](../../releases) page.
+1. **Download** `Create-Railways-Dynmap-Bridge-1.0.0.8.jar` from the [Releases](../../releases) page.
 2. **Install** — put the jar into the server's `plugins` folder. Remove older versions of the plugin first.
 3. **Open the port** — allow TCP port **25850** in your firewall. On a hosting panel (Pterodactyl, etc.) add an extra port allocation and use that number as `web-map.port`.
 4. **Start the server.** The plugin creates `plugins/Create-Railways-Dynmap-Bridge/` with `config.yml` and the blacklist files. The console should show:
    ```text
-   [Create-Railways-Dynmap-Bridge] Create Railways - Dynmap Bridge 1.0.0.7 enabled; Dynmap stations: every 60s, Dynmap trains: every 5s.
+   [Create-Railways-Dynmap-Bridge] Create Railways - Dynmap Bridge 1.0.0.8 enabled; Dynmap stations: every 60s, Dynmap trains: every 5s.
    [Create-Railways-Dynmap-Bridge] Web map started on port 25850: http://<server-ip>:25850/ (trains every 1000 ms).
    ```
    Without Dynmap you will see `Dynmap is not installed — Dynmap markers are off` instead — that is fine.
@@ -288,7 +296,7 @@ Create dimensions are matched to server worlds automatically and saved under `wo
 <summary><b>Show the complete file with comments</b></summary>
 
 ```yaml
-# Create Railways - Dynmap Bridge 1.0.0.7
+# Create Railways - Dynmap Bridge 1.0.0.8
 # Choose icon IDs from the list below. Changes take effect after restarting the server.
 
 # ==== Language ====
@@ -462,7 +470,16 @@ Restart the server after changing `language`, then reload the page with <kbd>Ctr
 
 ## 📦 Version History
 
-### 🚀 Version 1.0.0.7
+### 🚀 Version 1.0.0.8
+- **Clickable stations:** fixed clicks; the station window shows trains at the station and trains heading there (distance, speed), updates live, click a train to follow it.
+- **Train list per dimension** with a counter of trains in other dimensions.
+- **Legend entry for invisible (phantom) tracks.**
+- Readable names for modded / Multiverse dimensions (`minecraft:old` → *Old*).
+- Portals jump to their exit in the other dimension.
+- Dark scrollbars; wider station window without sideways scrolling.
+- Website updates load immediately after a plugin update (no stale browser cache).
+
+### Version 1.0.0.7
 - **Live web map** built into the plugin: tracks with curves, Steam 'n' Rails gauges, portals, stations and smoothly moving trains; train list with search and "follow".
 - **Dynmap is optional** — without it the web map and commands keep working.
 - `dynmap-stations` / `dynmap-trains` switches (both on by default).

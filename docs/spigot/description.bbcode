@@ -1,7 +1,7 @@
 [CENTER][SIZE=7][B]🚆 Create Railways Dynmap Bridge[/B][/SIZE]
 [SIZE=4][I]Live web map and Dynmap markers for Create & Steam 'n' Rails railways[/I][/SIZE]
 
-[SIZE=3][COLOR=#F0A23B][B]v1.0.0.7[/B][/COLOR]  •  [B]Minecraft 1.21.1[/B]  •  [B]Java 21+[/B]  •  [B]Create 6.0.x[/B]  •  [COLOR=#46C17A][B]Dynmap optional[/B][/COLOR][/SIZE]
+[SIZE=3][COLOR=#F0A23B][B]v1.0.0.8[/B][/COLOR]  •  [B]Minecraft 1.21.1[/B]  •  [B]Java 21+[/B]  •  [B]Create 6.0.x[/B]  •  [COLOR=#46C17A][B]Dynmap optional[/B][/COLOR][/SIZE]
 
 [IMG]https://raw.githubusercontent.com/mdreval/Create-Dynmap-Bridge/main/docs/images/web-map-overview.jpg[/IMG]
 [I]The built-in live web map — every track, station and train of the server in one browser tab.[/I][/CENTER]
@@ -20,10 +20,10 @@ Use both together, or only one of them — each part can be switched off in [B]c
 [SIZE=4][B]🗺️ Live web map[/B] [COLOR=#F0A23B][I](new in 1.0.0.7)[/I][/COLOR][/SIZE]
 [LIST]
 [*]Whole track network, [B]straight and curved[/B].
-[*][B]Steam 'n' Rails[/B] narrow gauge, wide gauge and monorail in their own colours; phantom (invisible) tracks shown dashed.
-[*]Stations — click one to see which trains are there and which are on their way.
+[*][B]Steam 'n' Rails[/B] narrow gauge, wide gauge and monorail in their own colours; phantom (invisible) tracks shown dashed, with a legend.
+[*]Stations — click one to see which trains are there and which are heading there (distance, speed), updated live.
 [*][B]Smoothly animated trains[/B], coloured by state: moving / stopped / derailed.
-[*]Train list with [B]search[/B], speed, current station and destination.
+[*]Train list for the selected dimension with [B]search[/B], speed, current station and destination.
 [*][B]"Follow this train"[/B] — the map keeps the train in view.
 [*]Portals between dimensions — click to jump to the other side.
 [*]Shareable links — the page address keeps the current view.
@@ -35,7 +35,10 @@ Use both together, or only one of them — each part can be switched off in [B]c
 [I]A train on a Steam 'n' Rails monorail next to standard and phantom tracks.[/I]
 
 [IMG]https://raw.githubusercontent.com/mdreval/Create-Dynmap-Bridge/main/docs/images/web-map-tram-lines.jpg[/IMG]
-[I]A narrow gauge tram line with its stations and a tram on the way.[/I][/CENTER]
+[I]A narrow gauge tram line with its stations and a tram on the way.[/I]
+
+[IMG]https://raw.githubusercontent.com/mdreval/Create-Dynmap-Bridge/main/docs/images/station-popup-at-station.jpg[/IMG]  [IMG]https://raw.githubusercontent.com/mdreval/Create-Dynmap-Bridge/main/docs/images/station-popup-heading-here.jpg[/IMG]
+[I]Click a station: trains standing there and trains heading to it, with distance and speed.[/I][/CENTER]
 
 [SIZE=4][B]📍 Dynmap markers[/B][/SIZE]
 [LIST]
@@ -85,7 +88,7 @@ Use both together, or only one of them — each part can be switched off in [B]c
 
 [SIZE=5][B]⬇️ Quick start[/B][/SIZE]
 [LIST=1]
-[*]Drop [B]Create-Railways-Dynmap-Bridge-1.0.0.7.jar[/B] into the [B]plugins[/B] folder. [B]When updating, delete the old jar first.[/B]
+[*]Drop [B]Create-Railways-Dynmap-Bridge-1.0.0.8.jar[/B] into the [B]plugins[/B] folder. [B]When updating, delete the old jar first.[/B]
 [*]Open TCP port [B]25850[/B] in your firewall / hosting panel (or set another port in config.yml).
 [*]Start the server — the console shows [B]Web map started on port 25850[/B].
 [*]Open [B]http://<server-ip>:25850/[/B] in a browser, or type [B]/railmap[/B] in game.
@@ -101,7 +104,18 @@ Full installation and configuration guide: see the [B]Documentation[/B] tab.
 
 [CENTER][COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR][/CENTER]
 
-[SIZE=5][B]🚀 What's New in 1.0.0.7[/B][/SIZE]
+[SIZE=5][B]🚀 What's New in 1.0.0.8[/B][/SIZE]
+[LIST]
+[*][B]Clickable stations:[/B] fixed clicks; the station window shows trains at the station and trains heading there (distance, speed), updates live, click a train to follow it.
+[*][B]Train list per dimension[/B] with a counter of trains in other dimensions.
+[*][B]Legend entry for invisible (phantom) tracks.[/B]
+[*]Readable names for modded / Multiverse dimensions (minecraft:old → Old).
+[*]Portals jump to their exit in the other dimension.
+[*]Dark scrollbars; wider station window without sideways scrolling.
+[*]Website updates load immediately after a plugin update (no stale browser cache).
+[/LIST]
+
+[SIZE=4][B]What's New in 1.0.0.7[/B][/SIZE]
 [LIST]
 [*][B]Live web map[/B] built into the plugin: tracks with curves, Steam 'n' Rails gauges, portals, stations and smoothly moving trains; train list with search and "follow".
 [*][B]Dynmap is optional[/B] — without it the web map and commands keep working.

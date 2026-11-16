@@ -1,5 +1,5 @@
 [CENTER][SIZE=6][B]📖 Create Railways Dynmap Bridge — Documentation[/B][/SIZE]
-[I]Version 1.0.0.7 · Installation, configuration, commands and troubleshooting[/I][/CENTER]
+[I]Version 1.0.0.8 · Installation, configuration, commands and troubleshooting[/I][/CENTER]
 
 [COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR]
 
@@ -8,11 +8,11 @@
 [*]Set up a compatible hybrid server core for Minecraft 1.21.1 (Youer, Arclight, Mohist, Magma…).
 [*]Install a compatible version of the [B]Create[/B] mod (6.0.x). [B]Steam 'n' Rails[/B] is optional.
 [*][I]Optional:[/I] install [B]Dynmap 3.7-beta8[/B] or newer if you want the Dynmap markers. The plugin works without Dynmap.
-[*]Drop [B]Create-Railways-Dynmap-Bridge-1.0.0.7.jar[/B] into the server's [B]plugins[/B] folder. [B]When updating, delete the old Create-Railways-Dynmap-Bridge jar first.[/B]
+[*]Drop [B]Create-Railways-Dynmap-Bridge-1.0.0.8.jar[/B] into the server's [B]plugins[/B] folder. [B]When updating, delete the old Create-Railways-Dynmap-Bridge jar first.[/B]
 [*]Open TCP port [B]25850[/B] in your firewall. On a hosting panel (Pterodactyl etc.) add an extra port allocation and use that number as [B]web-map.port[/B].
 [*]Start or restart the server. The console should show:
 [CODE]
-[Create-Railways-Dynmap-Bridge] Create Railways - Dynmap Bridge 1.0.0.7 enabled; Dynmap stations: every 60s, Dynmap trains: every 5s.
+[Create-Railways-Dynmap-Bridge] Create Railways - Dynmap Bridge 1.0.0.8 enabled; Dynmap stations: every 60s, Dynmap trains: every 5s.
 [Create-Railways-Dynmap-Bridge] Web map started on port 25850: http://<server-ip>:25850/ (trains every 1000 ms).
 [/CODE]
 Without Dynmap you will see [B]Dynmap is not installed — Dynmap markers are off[/B] instead. That is fine.
@@ -276,6 +276,17 @@ Restart the server after changing [B]language[/B], then reload the page with Ctr
 [COLOR=#F0A23B][B]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/B][/COLOR]
 
 [SIZE=5][B]★ Version History[/B][/SIZE]
+
+[SIZE=4][B]What's New 1.0.0.8[/B][/SIZE]
+[LIST]
+[*]Clickable stations: fixed clicks; the station window shows trains at the station and trains heading there (distance, speed), updates live, click a train to follow it.
+[*]Train list per dimension with a counter of trains in other dimensions.
+[*]Legend entry for invisible (phantom) tracks.
+[*]Readable names for modded / Multiverse dimensions (minecraft:old → Old).
+[*]Portals jump to their exit in the other dimension.
+[*]Dark scrollbars; wider station window without sideways scrolling.
+[*]Website updates load immediately after a plugin update (no stale browser cache).
+[/LIST]
 
 [SIZE=4][B]What's New 1.0.0.7[/B][/SIZE]
 [LIST]

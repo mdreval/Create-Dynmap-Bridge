@@ -313,7 +313,16 @@ public final class WebMapServer {
             }
             Headers headers = exchange.getResponseHeaders();
             headers.set("Content-Type", contentType(relative));
-            headers.set("Cache-Control", relative.equals("index.html") ? "no-cache" : "public, max-age=3600");
+            // "no-cache" + ETag: the browser keeps its copy but asks every time whether it changed.
+            // Unchanged files cost a tiny 304 answer; after a plugin update the new files load at once.
+            String etag = etag(data);
+            headers.set("Cache-Control", "no-cache");
+            headers.set("ETag", etag);
+            String ifNoneMatch = exchange.getRequestHeaders().getFirst("If-None-Match");
+            if (ifNoneMatch != null && ifNoneMatch.contains(etag)) {
+                exchange.sendResponseHeaders(304, -1);
+                return;
+            }
             if ("HEAD".equalsIgnoreCase(exchange.getRequestMethod())) {
                 exchange.sendResponseHeaders(200, -1);
                 return;
@@ -325,6 +334,12 @@ public final class WebMapServer {
         } finally {
             exchange.close();
         }
+    }
+
+    private static String etag(byte[] data) {
+        java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+        crc.update(data);
+        return "\"" + Long.toHexString(crc.getValue()) + "-" + Integer.toHexString(data.length) + "\"";
     }
 
     /** Returns a path like "assets/app.js", or null if the request points outside the website folder. */

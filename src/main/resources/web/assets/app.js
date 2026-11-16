@@ -37,16 +37,21 @@
       trackNarrow: "Narrow gauge",
       trackWide: "Wide gauge",
       trackMonorail: "Monorail",
+      trackPhantom: "Invisible track (dashed)",
+      trackPhantomHint: "Phantom tracks: trains use them, but they are not visible in the game",
       portalTo: "Portal → {0}",
       atStation: "At the station:",
       comingHere: "Heading here:",
+      distance: "≈ {0} m away",
+      followHint: "Click to follow this train",
       none: "none",
       derailed: "Derailed",
       stoppedAt: "Stopped: {0}",
       stopped: "Stopped",
       speed: "{0} km/h",
       nothingFound: "Nothing found",
-      noTrains: "No trains yet",
+      noTrains: "No trains in this dimension",
+      otherDimensions: "+{0} in other dimensions",
       "minecraft:overworld": "Overworld",
       "minecraft:the_nether": "Nether",
       "minecraft:the_end": "The End",
@@ -75,16 +80,21 @@
       trackNarrow: "Узкая колея",
       trackWide: "Широкая колея",
       trackMonorail: "Монорельс",
+      trackPhantom: "Невидимые пути (пунктир)",
+      trackPhantomHint: "Фантомные пути: поезда по ним ездят, но в игре их не видно",
       portalTo: "Портал → {0}",
       atStation: "На станции:",
       comingHere: "Едут сюда:",
+      distance: "≈ {0} м",
+      followHint: "Нажми, чтобы следить за поездом",
       none: "нет",
       derailed: "Сошёл с рельс",
       stoppedAt: "Стоит: {0}",
       stopped: "Стоит",
       speed: "{0} км/ч",
       nothingFound: "Ничего не найдено",
-      noTrains: "Поездов пока нет",
+      noTrains: "В этом измерении поездов нет",
+      otherDimensions: "Ещё {0} в других измерениях",
       "minecraft:overworld": "Обычный мир",
       "minecraft:the_nether": "Незер",
       "minecraft:the_end": "Энд",
@@ -130,6 +140,7 @@
     interval: 1000,
     dim: null,
     follow: null,
+    openStation: null,
     fittedOnce: false,
     animating: false,
   };
@@ -137,7 +148,13 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const ll = (p) => [p[2], p[0]];
-  const dimLabel = (d) => state.config.dimensions?.[d] || (strings[d] ?? I18N.en[d]) || d;
+  const dimLabel = (d) => state.config.dimensions?.[d] || (strings[d] ?? I18N.en[d]) || prettyDimension(d);
+
+  /** "minecraft:old" → "Old", "twilightforest:twilight_forest" → "Twilight Forest". */
+  function prettyDimension(id) {
+    const path = String(id ?? "").split(":").pop();
+    return path.split(/[_\-/]+/).filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") || String(id);
+  }
   const trackStyle = (type) => TRACK_STYLES.find((s) => (type || "").includes(s.match));
 
   // ------------------------------------------------------------------ map
@@ -158,14 +175,17 @@
   map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
   map.setView([0, 0], -1);
 
-  for (const [name, z] of [["tracks", 410], ["portals", 420], ["stations", 430], ["trains", 440]]) {
+  // Tracks and trains are drawn on canvases (fast for thousands of shapes). Stations and portals use SVG
+  // above them: every SVG circle receives its own clicks, while empty space lets clicks through to the
+  // trains canvas below (see app.css). A canvas on top would swallow all clicks for the layers under it.
+  for (const [name, z] of [["tracks", 410], ["trains", 420], ["portals", 430], ["stations", 440]]) {
     map.createPane(name).style.zIndex = z;
   }
   const renderers = {
     tracks: L.canvas({ pane: "tracks", padding: 0.5 }),
-    portals: L.canvas({ pane: "portals", padding: 0.5 }),
-    stations: L.canvas({ pane: "stations", padding: 0.5 }),
     trains: L.canvas({ pane: "trains", padding: 0.5 }),
+    portals: L.svg({ pane: "portals", padding: 0.5 }),
+    stations: L.svg({ pane: "stations", padding: 0.5 }),
   };
   const layers = {
     tracks: L.layerGroup().addTo(map),
@@ -221,16 +241,22 @@
 
   function renderLegend(groups) {
     const used = new Map();
-    for (const g of groups.values()) used.set(g.style.label, g.style.color);
-    $("legend").innerHTML = used.size > 1
-      ? [...used].map(([label, color]) => `<span><i style="background:${color}"></i>${esc(t(label))}</span>`).join("")
-      : "";
+    let phantom = false;
+    for (const g of groups.values()) {
+      used.set(g.style.label, g.style.color);
+      phantom ||= g.phantom;
+    }
+    const items = [...used].map(([label, color]) => `<span><i style="background:${color}"></i>${esc(t(label))}</span>`);
+    // Dashed lines are phantom tracks: they exist for trains but are invisible in the game.
+    if (phantom) items.push(`<span title="${esc(t("trackPhantomHint"))}"><i class="dashed"></i>${esc(t("trackPhantom"))}</span>`);
+    $("legend").innerHTML = used.size > 1 || phantom ? items.join("") : "";
   }
 
   function renderPortals() {
     layers.portals.clearLayers();
     for (const portal of state.network.portals) {
-      for (const [d, p, other] of [[portal.fd, portal.f, portal.td], [portal.td, portal.t, portal.fd]]) {
+      // [this side's dimension, this side's point, other dimension, other side's point]
+      for (const [d, p, other, target] of [[portal.fd, portal.f, portal.td, portal.t], [portal.td, portal.t, portal.fd, portal.f]]) {
         if (d !== state.dim) continue;
         L.circleMarker(ll(p), {
           renderer: renderers.portals,
@@ -241,7 +267,7 @@
           fillOpacity: 1,
         })
           .bindTooltip(esc(t("portalTo", dimLabel(other))), { direction: "top" })
-          .on("click", () => selectDimension(other, p))
+          .on("click", () => selectDimension(other, target))
           .addTo(layers.portals);
       }
     }
@@ -267,24 +293,76 @@
       } else {
         marker.bindTooltip(esc(station.name), { direction: "right", offset: [6, 0], className: "station-label" });
       }
-      marker.bindPopup(() => stationPopup(station));
+      // Registered before bindPopup, so it runs first: keep the popup clear of the side panel.
+      marker.on("click", () => {
+        const popup = marker.getPopup();
+        if (popup) popup.options.autoPanPaddingTopLeft = L.point(panelRightEdge() + 12, 12);
+      });
+      marker.bindPopup(() => stationPopup(station), {
+        maxWidth: 420,
+        minWidth: 260,
+        className: "station-popup",
+        autoPanPaddingTopLeft: L.point(panelRightEdge() + 12, 12),
+      });
+      marker.on("popupopen", () => (state.openStation = { station, marker }));
+      marker.on("popupclose", () => {
+        if (state.openStation?.marker === marker) state.openStation = null;
+      });
       marker.addTo(layers.stations);
     }
   }
 
+  /** Right edge of the side panel in pixels (0 when it is collapsed), so popups are not hidden under it. */
+  function panelRightEdge() {
+    const panel = $("panel");
+    return panel.classList.contains("collapsed") ? 0 : Math.round(panel.getBoundingClientRect().right);
+  }
+
+  /** Popup content: trains standing at the station and trains heading to it (refreshed live while open). */
   function stationPopup(station) {
     const here = [];
     const coming = [];
     for (const train of state.trains.values()) {
-      if (train.info.station === station.name) here.push(train.info.name);
-      else if (train.info.dest === station.name) coming.push(train.info.name);
+      const info = train.info;
+      if (info.station === station.name) {
+        here.push({ train, sort: info.name, detail: info.derailed ? t("derailed") : t("stopped") });
+      } else if (info.dest === station.name) {
+        const head = leadPoint(train.to);
+        const sameDim = head && head.d === station.d;
+        const meters = sameDim ? Math.round(distance(head.p, station.p)) : null;
+        const kmh = Math.round(Math.abs(info.speed) * 20 * 3.6);
+        const parts = [];
+        if (meters !== null) parts.push(t("distance", meters));
+        else if (head) parts.push(dimLabel(head.d));
+        parts.push(info.derailed ? t("derailed") : kmh > 0 ? t("speed", kmh) : t("stopped"));
+        coming.push({ train, sort: meters ?? Number.MAX_SAFE_INTEGER, detail: parts.join(" · ") });
+      }
     }
-    const list = (items) => items.length ? items.map(esc).join(", ") : `<span class="muted">${esc(t("none"))}</span>`;
+    here.sort((a, b) => a.sort.localeCompare(b.sort, document.documentElement.lang, { numeric: true }));
+    coming.sort((a, b) => a.sort - b.sort);
+    const list = (items) => items.length
+      ? `<ul class="popup-trains">${items.map(({ train, detail }) => `<li data-follow="${esc(train.id)}" title="${esc(t("followHint"))}">
+          <span class="train-dot" style="background:${TRAIN_COLORS[trainStatus(train.info)]}"></span>
+          <span><b>${esc(train.info.name)}</b><br><span class="muted">${esc(detail)}</span></span></li>`).join("")}</ul>`
+      : `<div class="muted popup-none">${esc(t("none"))}</div>`;
     return `<h3>${esc(station.name)}</h3>
       <div class="muted">X ${Math.round(station.p[0])}, Y ${Math.round(station.p[1])}, Z ${Math.round(station.p[2])}</div>
-      <div>${esc(t("atStation"))} ${list(here)}</div>
-      <div>${esc(t("comingHere"))} ${list(coming)}</div>`;
+      <div class="popup-section">${esc(t("atStation"))}</div>${list(here)}
+      <div class="popup-section">${esc(t("comingHere"))}</div>${list(coming)}`;
   }
+
+  // Clicking a train inside a station popup follows that train.
+  map.on("popupopen", (e) => {
+    const el = e.popup.getElement();
+    if (!el || el.dataset.followBound) return;
+    el.dataset.followBound = "1";
+    el.addEventListener("click", (event) => {
+      const item = event.target.closest("[data-follow]");
+      if (!item) return;
+      map.closePopup();
+      followTrain(item.dataset.follow);
+    });
+  });
 
   // ------------------------------------------------------------------ trains
 
@@ -444,6 +522,9 @@
     }
     startAnimation();
     renderTrainList();
+    if (state.openStation) {
+      state.openStation.marker.setPopupContent(stationPopup(state.openStation.station));
+    }
     updateDimensions();
     if (state.follow) {
       const train = state.trains.get(state.follow);
@@ -477,9 +558,20 @@
     return text;
   }
 
+  /** Dimension a train is in (its front), or null if unknown. */
+  function trainDimension(train) {
+    const head = leadPoint(train.to);
+    return head ? head.d : null;
+  }
+
   function renderTrainList() {
     const query = $("train-search").value.trim().toLowerCase();
-    const trains = [...state.trains.values()].sort((a, b) => a.info.name.localeCompare(b.info.name, document.documentElement.lang, { numeric: true }));
+    // Only trains of the selected dimension; the others are counted below the list.
+    const all = [...state.trains.values()];
+    const trains = all
+      .filter((train) => trainDimension(train) === state.dim)
+      .sort((a, b) => a.info.name.localeCompare(b.info.name, document.documentElement.lang, { numeric: true }));
+    const elsewhere = all.length - trains.length;
     $("train-count").textContent = trains.length;
     const items = [];
     for (const train of trains) {
@@ -494,6 +586,9 @@
     }
     if (!items.length) {
       items.push(`<li class="empty">${esc(trains.length ? t("nothingFound") : t("noTrains"))}</li>`);
+    }
+    if (elsewhere > 0) {
+      items.push(`<li class="empty other-dims">${esc(t("otherDimensions", elsewhere))}</li>`);
     }
     $("train-list").innerHTML = items.join("");
   }
