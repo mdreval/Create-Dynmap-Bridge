@@ -11,11 +11,11 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Рефлексия с кешем.
+ * Reflection with a cache.
  *
- * На Youer каждый поиск метода/поля из плагина проходит через ремаппер сервера
- * (getMethods, getName и т.д. перехватываются) и стоит очень дорого. Поэтому поиск
- * делается один раз на (класс, имя, типы аргументов), а дальше используется готовый Method.
+ * On Youer every method/field lookup from a plugin goes through the server remapper
+ * (getMethods, getName etc. are intercepted) and is very expensive. So a lookup is done
+ * once per (class, name, argument types) and the cached Method is reused afterwards.
  */
 final class Reflect {
     static final Object[] NO_ARGS = new Object[0];
@@ -87,7 +87,7 @@ final class Reflect {
         return ((Method) cached).invoke(null, args);
     }
 
-    /** Сначала поле (публичное или объявленное), если его нет или оно null — метод без аргументов. */
+    /** Field first (public or declared); if it is missing or null — a no-argument method. */
     static Object fieldOrMethod(Object target, String fieldName, String methodName) throws Exception {
         if (target == null) {
             return null;
@@ -125,7 +125,7 @@ final class Reflect {
                         declared.setAccessible(true);
                         cached = declared;
                     } catch (NoSuchFieldException | RuntimeException ignored) {
-                        // нет такого поля или нет доступа — ищем дальше
+                        // no such field or no access — keep looking
                     }
                 }
             }
@@ -148,7 +148,7 @@ final class Reflect {
         return cached == MISSING ? null : (Method) cached;
     }
 
-    /** Тот же порядок поиска, что был в 1.0.0.5: интерфейсы, затем публичные методы публичных классов. */
+    /** Same lookup order as in 1.0.0.5: interfaces first, then public methods of public classes. */
     private static Method findPublicMethod(Class<?> owner, String name, Object[] args) {
         for (Class<?> type = owner; type != null; type = type.getSuperclass()) {
             for (Class<?> iface : type.getInterfaces()) {
@@ -192,7 +192,7 @@ final class Reflect {
             try {
                 method.setAccessible(true);
             } catch (RuntimeException ignored) {
-                // если не дали доступ — invoke сам бросит исключение, как и раньше
+                // if access is denied, invoke() throws as before
             }
             return method;
         }

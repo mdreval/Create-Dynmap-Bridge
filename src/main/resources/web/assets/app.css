@@ -1,0 +1,219 @@
+:root {
+  --bg: #11151c;
+  --panel: rgba(22, 27, 36, 0.94);
+  --panel-border: #2a3240;
+  --text: #e6e9ef;
+  --muted: #8b95a7;
+  --accent: #f0a23b;
+  --ok: #46c17a;
+  --warn: #e0b13a;
+  --bad: #e5534b;
+  --station: #ffffff;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+}
+
+#map {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+}
+
+.leaflet-container { background: var(--bg); font-family: var(--font); }
+.leaflet-control-attribution { background: rgba(17, 21, 28, 0.7) !important; color: var(--muted) !important; }
+.leaflet-control-attribution a { color: var(--muted) !important; }
+.leaflet-bar a { background: var(--panel); color: var(--text); border-color: var(--panel-border); }
+.leaflet-bar a:hover { background: #2a3240; color: var(--text); }
+
+/* ---------- panel ---------- */
+
+#panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  width: 320px;
+  max-height: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+#panel.collapsed .panel-body { display: none; }
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+#panel.collapsed .panel-head { border-bottom: none; }
+
+.panel-title h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.icon-button {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.icon-button:hover { background: #2a3240; }
+
+.status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+.status-ok .dot { background: var(--ok); }
+.status-bad .dot { background: var(--bad); }
+
+.panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field span, .layers legend { color: var(--muted); font-size: 12px; }
+
+select, input[type="search"] {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: #0f1319;
+  color: var(--text);
+  font: inherit;
+}
+
+.layers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.layers legend { margin-bottom: 4px; padding: 0; }
+.layers label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--muted); }
+.legend:empty { display: none; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { display: inline-block; width: 18px; height: 4px; border-radius: 2px; }
+
+.trains-head { display: flex; flex-direction: column; gap: 6px; }
+.trains-head h2 { margin: 0; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.count { color: var(--muted); font-weight: 400; }
+
+.train-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  min-height: 40px;
+  flex: 1 1 auto;
+}
+
+.train-list li {
+  display: flex;
+  gap: 8px;
+  padding: 7px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.train-list li:hover { background: #222a36; }
+.train-list li.active { background: #2a3240; }
+.train-list .empty { color: var(--muted); cursor: default; }
+.train-list .empty:hover { background: none; }
+
+.train-dot { flex: none; width: 10px; height: 10px; margin-top: 4px; border-radius: 50%; }
+.train-info { min-width: 0; }
+.train-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.train-state { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.panel-foot { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); }
+.panel-foot a { color: var(--accent); text-decoration: none; }
+.panel-foot a:hover { text-decoration: underline; }
+
+/* ---------- map labels ---------- */
+
+.leaflet-tooltip.station-label,
+.leaflet-tooltip.train-label {
+  background: rgba(17, 21, 28, 0.82);
+  border: none;
+  border-radius: 4px;
+  box-shadow: none;
+  color: var(--text);
+  padding: 1px 6px;
+  font-size: 12px;
+}
+
+.leaflet-tooltip.station-label { font-weight: 600; }
+.leaflet-tooltip.train-label { color: #ffd59a; }
+.leaflet-tooltip.station-label::before,
+.leaflet-tooltip.train-label::before { display: none; }
+
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: var(--text); }
+.leaflet-popup-content { margin: 10px 12px; font-size: 13px; line-height: 1.45; }
+.leaflet-popup-content h3 { margin: 0 0 4px; font-size: 14px; }
+.leaflet-popup-content .muted { color: var(--muted); }
+.leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
+
+/* ---------- bottom badges ---------- */
+
+.coords, .follow {
+  position: absolute;
+  z-index: 1000;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+.coords { right: 12px; bottom: 26px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.follow { left: 50%; transform: translateX(-50%); bottom: 26px; }
+
+.link-button {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  padding: 0 0 0 6px;
+}
+
+@media (max-width: 600px) {
+  #panel { width: calc(100% - 24px); max-height: 60%; }
+  .coords { display: none; }
+}

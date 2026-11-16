@@ -1,5 +1,8 @@
 package com.igrobar.createdynmap;
 
+import com.igrobar.createdynmap.web.Json;
+import com.igrobar.createdynmap.web.MapData;
+import com.igrobar.createdynmap.web.WebMapServer;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -20,8 +23,10 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitScheduler;
 
 public final class CreateRailwaysDynmapBridge extends JavaPlugin {
-    /** Сколько обновлений подряд поезд может «пропасть», прежде чем его маркер удалится. */
+    /** How many updates in a row a train may be missing before its marker is removed. */
     private static final int TRAIN_MISSES_BEFORE_REMOVAL = 3;
+    /** Default port of the live web map. */
+    private static final int DEFAULT_WEB_PORT = 25850;
 
     private volatile boolean stopping;
     private final Set<String> warned = new HashSet<>();
@@ -32,6 +37,13 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
     private BlacklistFiles blacklist;
     private DynmapMarkers markers;
     private Object stationPointType;
+    private boolean dynmapStations;
+    private boolean dynmapTrains;
+    private WebMapServer webMap;
+    private RailwayMapCollector webCollector;
+    private long webTrainIntervalMs;
+    private long webNetworkRefreshMs;
+    private Lang lang = Lang.of("en");
 
     @Override
     public void onEnable() {
@@ -41,9 +53,16 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
         if (this.getCommand("gettrains") != null) {
             this.getCommand("gettrains").setExecutor(new TrainCommand(this));
         }
+        if (this.getCommand("railmap") != null) {
+            this.getCommand("railmap").setExecutor(new RailMapCommand(this));
+        }
 
-        // Сохраняет config.yml из .jar со всеми комментариями, если его ещё нет
+        // Saves config.yml from the jar with all comments if it does not exist yet
         this.saveDefaultConfig();
+        // Append new sections (with comments) to config.yml from older versions without removing anything
+        ConfigUpgrade.apply(this);
+        this.reloadConfig();
+        this.lang = Lang.of(this.getConfig().getString("language", "en"));
 
         File dataFolder = this.getDataFolder();
         if (!dataFolder.exists() && !dataFolder.mkdirs() && !dataFolder.isDirectory()) {
@@ -57,22 +76,165 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
         long trainTicks = this.intervalTicks("train-update-interval-seconds", 5L);
         long stationTicks = this.intervalTicks("station-update-interval-seconds", 60L);
         long exportTicks = this.intervalTicks("export-interval-seconds", 3600L);
+        this.dynmapStations = this.getConfig().getBoolean("dynmap-stations", true);
+        this.dynmapTrains = this.getConfig().getBoolean("dynmap-trains", true);
+        // Dynmap is optional: without it only the Dynmap markers are skipped, everything else keeps working.
+        if ((this.dynmapStations || this.dynmapTrains) && Bukkit.getPluginManager().getPlugin("dynmap") == null) {
+            this.dynmapStations = false;
+            this.dynmapTrains = false;
+            this.getLogger().info("Dynmap is not installed — Dynmap markers are off. The web map and commands work without it.");
+        }
 
         BukkitScheduler scheduler = Bukkit.getScheduler();
-        // Станции почти не меняются — обновляем редко; поезда — чаще. Всё в главном потоке, но дёшево.
-        scheduler.runTaskTimer(this, this::safeStationScan, 100L, stationTicks);
-        scheduler.runTaskTimer(this, this::safeTrainScan, 110L, trainTicks);
+        // Stations rarely change, so they are updated rarely; trains more often. Main thread, but cheap.
+        if (this.dynmapStations) {
+            scheduler.runTaskTimer(this, this::safeStationScan, 100L, stationTicks);
+        }
+        if (this.dynmapTrains) {
+            scheduler.runTaskTimer(this, this::safeTrainScan, 110L, trainTicks);
+        }
         scheduler.runTaskTimer(this, this::saveTxtFiles, 200L, exportTicks);
 
-        this.getLogger().info("Create Railways - Dynmap Bridge " + this.getDescription().getVersion()
-                + " enabled; trains every " + trainTicks / 20 + "s, stations every " + stationTicks / 20 + "s.");
+        this.getLogger().info("Create Railways - Dynmap Bridge " + this.getDescription().getVersion() + " enabled; Dynmap stations: "
+                + (this.dynmapStations ? "every " + stationTicks / 20 + "s" : "off") + ", Dynmap trains: "
+                + (this.dynmapTrains ? "every " + trainTicks / 20 + "s" : "off") + ".");
+
+        this.startWebMap(scheduler);
     }
 
     @Override
     public void onDisable() {
         this.stopping = true;
         this.markers = null;
+        if (this.webMap != null) {
+            this.webMap.stop();
+            this.webMap = null;
+        }
         Reflect.clear();
+    }
+
+    // ------------------------------------------------------------------ web map
+
+    private void startWebMap(BukkitScheduler scheduler) {
+        if (!this.getConfig().getBoolean("web-map.enabled", true)) {
+            this.getLogger().info("Web map is disabled (web-map.enabled: false).");
+            return;
+        }
+        String bind = this.getConfig().getString("web-map.bind-address", "0.0.0.0");
+        int port = this.getConfig().getInt("web-map.port", DEFAULT_WEB_PORT);
+        int maxViewers = this.getConfig().getInt("web-map.max-viewers", 50);
+        double trainSeconds = Math.max(0.25, this.getConfig().getDouble("web-map.train-update-interval-seconds", 1.0));
+        long trainTicks = Math.max(5L, Math.round(trainSeconds * 20.0));
+        long networkTicks = this.intervalTicks("web-map.network-check-interval-seconds", 10L);
+        this.webTrainIntervalMs = trainTicks * 50L;
+        this.webNetworkRefreshMs = Math.max(30L, this.getConfig().getLong("web-map.network-refresh-seconds", 300L)) * 1000L;
+
+        File webFolder = new File(this.getDataFolder(), "web");
+        try {
+            this.webMap = new WebMapServer(this.getLogger(), this.getClassLoader(), webFolder.toPath().toAbsolutePath().normalize(),
+                    maxViewers, this.webConfigJson());
+            this.webMap.start(bind, port);
+        } catch (Throwable throwable) {
+            if (this.webMap != null) {
+                this.webMap.stop();
+            }
+            this.webMap = null;
+            this.getLogger().warning("Web map could not start on " + bind + ":" + port + " — " + throwable
+                    + ". Is the port already in use? Change web-map.port in config.yml.");
+            return;
+        }
+        this.webCollector = new RailwayMapCollector(this);
+        scheduler.runTaskTimer(this, this::safeWebNetworkScan, 60L, networkTicks);
+        scheduler.runTaskTimer(this, this::safeWebTrainScan, 80L, trainTicks);
+        this.getLogger().info("Web map started on port " + port + ": " + this.webMapUrl()
+                + " (trains every " + this.webTrainIntervalMs + " ms).");
+    }
+
+    /** Map link for players: web-map.public-url or http://<ip>:<port>/. */
+    String webMapUrl() {
+        String url = this.getConfig().getString("web-map.public-url", "");
+        if (url != null && !url.isBlank()) {
+            return url;
+        }
+        String ip = Bukkit.getIp();
+        if (ip == null || ip.isBlank() || ip.equals("0.0.0.0")) {
+            ip = "<server-ip>";
+        }
+        return "http://" + ip + ":" + this.getConfig().getInt("web-map.port", DEFAULT_WEB_PORT) + "/";
+    }
+
+    boolean isWebMapRunning() {
+        return this.webMap != null;
+    }
+
+    int webMapViewers() {
+        return this.webMap == null ? 0 : this.webMap.viewers();
+    }
+
+    private String webConfigJson() {
+        Json json = new Json(512);
+        json.beginObject()
+                .field("language", this.lang.code())
+                .field("title", this.getConfig().getString("web-map.title", ""))
+                .field("defaultDimension", this.getConfig().getString("web-map.default-dimension", "minecraft:overworld"))
+                .field("stationLabels", this.getConfig().getBoolean("web-map.show-station-labels", true))
+                .field("dynmapUrl", this.getConfig().getString("web-map.dynmap-url", ""))
+                .field("version", this.getDescription().getVersion());
+        json.key("dimensions").beginObject();
+        ConfigurationSection dimensions = this.getConfig().getConfigurationSection("web-map.dimensions");
+        if (dimensions != null) {
+            for (String key : dimensions.getKeys(false)) {
+                json.field(key, dimensions.getString(key, key));
+            }
+        }
+        json.endObject().endObject();
+        return json.toString();
+    }
+
+    private void safeWebTrainScan() {
+        if (this.stopping || this.webMap == null) {
+            return;
+        }
+        try {
+            RailwayDataSnapshot snapshot = this.railwayDataSnapshot();
+            if (snapshot == null || !(snapshot.trains instanceof Map<?, ?> trains)) {
+                return;
+            }
+            this.blacklist.reloadIfChanged();
+            List<MapData.TrainInfo> list = this.webCollector.trains(trains);
+            this.webMap.publishTrains(list, System.currentTimeMillis(), this.webTrainIntervalMs);
+        } catch (Throwable throwable) {
+            Throwable cause = Reflect.unwrap(throwable);
+            this.warnOnce("web-trains:" + cause.getClass().getName(), "Web map train scan failed: " + cause);
+        }
+    }
+
+    private void safeWebNetworkScan() {
+        if (this.stopping || this.webMap == null) {
+            return;
+        }
+        try {
+            RailwayDataSnapshot snapshot = this.railwayDataSnapshot();
+            if (snapshot == null || !(snapshot.graphs instanceof Map<?, ?> graphs)) {
+                return;
+            }
+            this.blacklist.reloadIfChanged();
+            if (this.webCollector.networkNeedsRebuild(graphs, this.webNetworkRefreshMs)) {
+                this.webMap.publishNetwork(this.webCollector.network(graphs));
+            }
+            this.webMap.publishStations(this.webCollector.stations(graphs));
+        } catch (Throwable throwable) {
+            Throwable cause = Reflect.unwrap(throwable);
+            this.warnOnce("web-network:" + cause.getClass().getName(), "Web map track scan failed: " + cause);
+        }
+    }
+
+    Lang lang() {
+        return this.lang;
+    }
+
+    boolean isBlacklisted(String markerId, String label) {
+        return this.blacklist != null && this.blacklist.isBlacklisted(markerId, label);
     }
 
     private long intervalTicks(String key, long defaultSeconds) {
@@ -80,7 +242,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
         return Math.max(20L, seconds * 20L);
     }
 
-    // ------------------------------------------------------------------ сканирование
+    // ------------------------------------------------------------------ scanning
 
     private void safeTrainScan() {
         if (this.stopping) {
@@ -106,7 +268,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
         }
     }
 
-    /** Общая подготовка к циклу: Dynmap, данные Create, миры, чёрные списки. */
+    /** Common cycle preparation: Dynmap, Create data, worlds, blacklists. */
     private RailwayDataSnapshot beginCycle() throws Exception {
         if (this.connectDynmap() == null) {
             return null;
@@ -135,7 +297,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
             this.warned.remove("no-train-positions");
         }
 
-        // Удаляем маркеры поездов, которых нет уже несколько обновлений подряд (удалённые/разобранные поезда)
+        // Remove markers of trains missing for several updates in a row (removed/disassembled trains)
         Set<String> existing = this.markers.markerIds("train_");
         this.trainMisses.keySet().retainAll(existing);
         for (String markerId : existing) {
@@ -185,7 +347,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
                 }
             }
         }
-        // Удалённые станции убираем с карты (только если скан что-то нашёл, чтобы не стереть всё при сбое)
+        // Remove deleted stations from the map (only if the scan found something, so a failure does not wipe everything)
         if (!seen.isEmpty()) {
             for (String markerId : this.markers.markerIds("station_")) {
                 if (!seen.contains(markerId)) {
@@ -218,7 +380,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
         return this.markers;
     }
 
-    /** Создаёт/обновляет маркер. Возвращает false, если маркер в чёрном списке или Dynmap недоступен. */
+    /** Creates/updates a marker. Returns false if the marker is blacklisted or Dynmap is unavailable. */
     boolean upsert(String markerId, String label, String kind, String world, double x, double y, double z) throws Exception {
         if (this.markers == null) {
             return false;
@@ -233,7 +395,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
         return true;
     }
 
-    // ------------------------------------------------------------------ данные Create
+    // ------------------------------------------------------------------ Create data
 
     private RailwayDataSnapshot railwayDataSnapshot() throws Exception {
         try {
@@ -266,14 +428,14 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
         return Reflect.callStatic(Reflect.type("com.simibubi.create.content.trains.RailwaySavedData"), "load", minecraftServer);
     }
 
-    private Object stationPointType() throws Exception {
+    Object stationPointType() throws Exception {
         if (this.stationPointType == null) {
             this.stationPointType = Reflect.staticField(Reflect.type("com.simibubi.create.content.trains.graph.EdgePointType"), "STATION");
         }
         return this.stationPointType;
     }
 
-    private Object stationPosition(Object graph, Object station) throws Exception {
+    Object stationPosition(Object graph, Object station) throws Exception {
         Object edgeLocation = Reflect.fieldOrMethod(station, "edgeLocation", "getEdgeLocation");
         if (edgeLocation == null) {
             return null;
@@ -294,7 +456,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
         return Reflect.call(edge, "getPosition", graph, t);
     }
 
-    private String stationDimension(Object station) {
+    String stationDimension(Object station) {
         try {
             Object edgeLocation = Reflect.fieldOrMethod(station, "edgeLocation", "getEdgeLocation");
             Object first = Reflect.optionalCall(edgeLocation, "getFirst");
@@ -306,7 +468,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
                 return this.dimensionId(dimension);
             }
         } catch (Throwable ignored) {
-            // упадём на "world" ниже
+            // fall back to "world" below
         }
         return "world";
     }
@@ -327,7 +489,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
         return text;
     }
 
-    // ------------------------------------------------------------------ миры Dynmap
+    // ------------------------------------------------------------------ Dynmap worlds
 
     String dynmapWorld(String dimension) {
         String key = dimension == null ? "" : dimension;
@@ -376,7 +538,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
                 this.availableWorlds.add(world.getName());
             }
         } catch (Throwable ignored) {
-            // список миров недоступен — используем то, что уже знаем
+            // world list unavailable — use what we already know
         }
     }
 
@@ -389,7 +551,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
                 }
             }
         } catch (Throwable ignored) {
-            // нет подходящих миров
+            // no matching worlds
         }
         return result;
     }
@@ -413,7 +575,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
                 }
             }
         } catch (Throwable ignored) {
-            // без оверрайдов работает автоопределение
+            // without overrides auto-detection is used
         }
     }
 
@@ -426,11 +588,11 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
             this.getConfig().set("worlds." + dimension, world);
             this.saveConfig();
         } catch (Throwable ignored) {
-            // не критично: сопоставление всё равно запомнено в памяти
+            // not critical: the mapping is still kept in memory
         }
     }
 
-    // ------------------------------------------------------------------ экспорт stations.txt / trains.txt
+    // ------------------------------------------------------------------ stations.txt / trains.txt export
 
     private void saveTxtFiles() {
         if (this.stopping) {
@@ -452,7 +614,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
                             try {
                                 stationNames.add(Reflect.text(Reflect.fieldOrMethod(station, "name", "getName"), "Unnamed station"));
                             } catch (Throwable ignored) {
-                                // пропускаем станцию
+                                // skip this station
                             }
                         }
                     }
@@ -463,7 +625,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
                     try {
                         trainNames.add(Reflect.componentText(Reflect.fieldOrMethod(train, "name", "getName"), "Train"));
                     } catch (Throwable ignored) {
-                        // пропускаем поезд
+                        // skip this train
                     }
                 }
             }
@@ -478,7 +640,7 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
         }
     }
 
-    // ------------------------------------------------------------------ прочее
+    // ------------------------------------------------------------------ misc
 
     void warnOnce(String key, String message) {
         if (this.warned.add(key)) {
@@ -505,63 +667,82 @@ public final class CreateRailwaysDynmapBridge extends JavaPlugin {
     }
 }
 
+/** /getstations — prints the exported station list. */
 final class StationCommand implements org.bukkit.command.CommandExecutor {
-    private final org.bukkit.plugin.java.JavaPlugin plugin;
+    private final CreateRailwaysDynmapBridge plugin;
 
-    public StationCommand(org.bukkit.plugin.java.JavaPlugin plugin) {
+    StationCommand(CreateRailwaysDynmapBridge plugin) {
         this.plugin = plugin;
     }
 
     @Override
     public boolean onCommand(org.bukkit.command.CommandSender sender, org.bukkit.command.Command command, String label, String[] args) {
-        if (!sender.hasPermission("create.stations.admin")) {
-            sender.sendMessage("У вас нет прав на выполнение этой команды.");
-            return true;
-        }
-        try {
-            java.io.File file = new java.io.File(plugin.getDataFolder(), "stations.txt");
-            if (!file.exists()) {
-                sender.sendMessage("Файл со станциями еще не создан.");
-                return true;
-            }
-            java.util.List<String> stations = java.nio.file.Files.readAllLines(file.toPath(), java.nio.charset.StandardCharsets.UTF_8);
-            sender.sendMessage("=== Список станций Create (" + stations.size() + ") ===");
-            for (String station : stations) {
-                sender.sendMessage("- " + station);
-            }
-        } catch (Exception e) {
-            sender.sendMessage("Ошибка при чтении файла станций: " + e.getMessage());
-        }
+        ListFileCommand.print(this.plugin, sender, "stations.txt", "stations");
         return true;
     }
 }
 
+/** /gettrains — prints the exported train list. */
 final class TrainCommand implements org.bukkit.command.CommandExecutor {
-    private final org.bukkit.plugin.java.JavaPlugin plugin;
+    private final CreateRailwaysDynmapBridge plugin;
 
-    public TrainCommand(org.bukkit.plugin.java.JavaPlugin plugin) {
+    TrainCommand(CreateRailwaysDynmapBridge plugin) {
         this.plugin = plugin;
     }
 
     @Override
     public boolean onCommand(org.bukkit.command.CommandSender sender, org.bukkit.command.Command command, String label, String[] args) {
+        ListFileCommand.print(this.plugin, sender, "trains.txt", "trains");
+        return true;
+    }
+}
+
+/** Shared code of /getstations and /gettrains. */
+final class ListFileCommand {
+    private ListFileCommand() {
+    }
+
+    static void print(CreateRailwaysDynmapBridge plugin, org.bukkit.command.CommandSender sender, String fileName, String kind) {
+        Lang lang = plugin.lang();
         if (!sender.hasPermission("create.stations.admin")) {
-            sender.sendMessage("У вас нет прав на выполнение этой команды.");
-            return true;
+            sender.sendMessage(lang.get("no-permission"));
+            return;
         }
         try {
-            java.io.File file = new java.io.File(plugin.getDataFolder(), "trains.txt");
+            java.io.File file = new java.io.File(plugin.getDataFolder(), fileName);
             if (!file.exists()) {
-                sender.sendMessage("Файл с поездами еще не создан.");
-                return true;
+                sender.sendMessage(lang.get(kind + "-file-missing"));
+                return;
             }
-            java.util.List<String> trains = java.nio.file.Files.readAllLines(file.toPath(), java.nio.charset.StandardCharsets.UTF_8);
-            sender.sendMessage("=== Список поездов Create (" + trains.size() + ") ===");
-            for (String train : trains) {
-                sender.sendMessage("- " + train);
+            java.util.List<String> lines = java.nio.file.Files.readAllLines(file.toPath(), java.nio.charset.StandardCharsets.UTF_8);
+            sender.sendMessage(lang.get(kind + "-header", lines.size()));
+            for (String line : lines) {
+                sender.sendMessage("- " + line);
             }
         } catch (Exception e) {
-            sender.sendMessage("Ошибка при чтении файла поездов: " + e.getMessage());
+            sender.sendMessage(lang.get(kind + "-read-error", e.getMessage()));
+        }
+    }
+}
+
+/** /railmap — shows the link to the live web map. */
+final class RailMapCommand implements org.bukkit.command.CommandExecutor {
+    private final CreateRailwaysDynmapBridge plugin;
+
+    RailMapCommand(CreateRailwaysDynmapBridge plugin) {
+        this.plugin = plugin;
+    }
+
+    @Override
+    public boolean onCommand(org.bukkit.command.CommandSender sender, org.bukkit.command.Command command, String label, String[] args) {
+        Lang lang = this.plugin.lang();
+        if (!this.plugin.isWebMapRunning()) {
+            sender.sendMessage(lang.get("map-disabled"));
+            return true;
+        }
+        sender.sendMessage(lang.get("map-link", this.plugin.webMapUrl()));
+        if (sender.hasPermission("create.stations.admin")) {
+            sender.sendMessage(lang.get("map-viewers", this.plugin.webMapViewers()));
         }
         return true;
     }

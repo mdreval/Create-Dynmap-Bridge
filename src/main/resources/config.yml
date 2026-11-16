@@ -1,5 +1,9 @@
-# Create Railways - Dynmap Bridge 1.0.0.6
+# Create Railways - Dynmap Bridge 1.0.0.7
 # Choose icon IDs from the list below. Changes take effect after restarting the server.
+
+# ==== Language ====
+# Language of the web map and of the plugin messages: "en" (English) or "ru" (Russian).
+language: "en"
 
 # Station icon
 station-icon: "bank"
@@ -29,6 +33,51 @@ export-interval-seconds: 3600
 # ruby, scales, shield, sign, silvermedal, silverstar, skull, star, sun, temple,
 # theater, tornado, tower, tree, truck, up, walk, warning, world, wrench
 
+# ==== Dynmap markers ====
+# Show Create stations on the Dynmap map (default: true).
+dynmap-stations: true
+# Show Create trains on the Dynmap map (default: true).
+# If you use the live web map below, you can set this to false to save a bit of work.
+dynmap-trains: true
+
+# ==== Live web map ====
+# A separate lightweight website with the track network, stations and moving trains
+# (like Create Track Map / MTR). Open http://<server-ip>:<port>/ in a browser.
+# The server only collects train positions; the website itself runs in separate threads.
+web-map:
+  # Turn the web map on/off (default: true).
+  enabled: true
+  # Network address and port of the web map. 0.0.0.0 = all addresses.
+  # Remember to open this port in your firewall / hosting panel.
+  bind-address: "0.0.0.0"
+  port: 25850
+  # Link shown by /railmap. Leave empty to use http://<server-ip>:<port>/
+  # Example: "https://map.example.com/trains/"
+  public-url: ""
+  # Website title. Leave empty for the default title in the selected language.
+  title: ""
+  # How often train positions are sent to the website, in seconds (default: 1, minimum 0.25).
+  # Trains move smoothly between updates, so 1-2 seconds looks fine.
+  train-update-interval-seconds: 1
+  # How often the server checks whether tracks or stations changed, in seconds (default: 10).
+  network-check-interval-seconds: 10
+  # Track geometry is rebuilt when the network changes, and in any case every N seconds (default: 300).
+  network-refresh-seconds: 300
+  # Maximum number of browser tabs watching the map at the same time (default: 50).
+  max-viewers: 50
+  # Show station names on the map by default.
+  show-station-labels: true
+  # Dimension opened first.
+  default-dimension: "minecraft:overworld"
+  # Optional link to your Dynmap shown on the website (empty = hidden). Example: "http://example.com:8123/"
+  dynmap-url: ""
+  # Custom names of dimensions on the website. Vanilla dimensions are already named
+  # in the selected language; add modded dimensions or overrides here, for example:
+  #   "minecraft:overworld": "Main world"
+  #   "twilightforest:twilight_forest": "Twilight Forest"
+  dimensions: {}
+
+# ==== Worlds ====
 # Mappings are added automatically when the bridge detects Create dimensions.
 # Usually, this section does not need to be filled out manually.
 # If auto-detection picks the wrong world, you can set an override manually.

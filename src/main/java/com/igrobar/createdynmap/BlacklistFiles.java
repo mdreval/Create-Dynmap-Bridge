@@ -11,9 +11,9 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Чёрные списки станций и поездов (blacklist-stations.yml / blacklist-trains.yml).
- * Файлы проверяются один раз за цикл обновления (reloadIfChanged), а не на каждый маркер,
- * поэтому в главном потоке нет лишней работы с диском. Изменения подхватываются автоматически.
+ * Station and train blacklists (blacklist-stations.yml / blacklist-trains.yml).
+ * The files are checked once per update cycle (reloadIfChanged), not once per marker,
+ * so the main thread does no extra disk work. Changes are picked up automatically.
  */
 final class BlacklistFiles {
     private final Path folder;
@@ -46,7 +46,7 @@ final class BlacklistFiles {
                 this.trainStamp = trainTime;
             }
         } catch (Throwable ignored) {
-            // при ошибке чтения оставляем прежние списки
+            // keep the previous lists if the files cannot be read
         }
     }
 

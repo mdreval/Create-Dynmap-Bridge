@@ -5,12 +5,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Маркеры поездов.
+ * Train markers.
  *
- * Для каждого поезда берётся первый вагон с сохранённой позицией в измерении
- * (getPresentDimensions / getPositionInDimension — работает и для поездов в незагруженных чанках).
- * Если сохранённой позиции у вагона нет, используется позиция его сущности (anyAvailableEntity).
- * На каждый мир — один маркер "train_&lt;id&gt;_&lt;мир&gt;", как и раньше.
+ * For every train the first carriage with a stored position in a dimension is used
+ * (getPresentDimensions / getPositionInDimension also works for trains in unloaded chunks).
+ * If a carriage has no stored position, the position of its entity is used (anyAvailableEntity).
+ * One marker "train_&lt;id&gt;_&lt;world&gt;" per world, as before.
  */
 final class TrainMarkerUpdater {
     private TrainMarkerUpdater() {

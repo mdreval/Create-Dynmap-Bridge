@@ -8,8 +8,8 @@ import java.util.Set;
 import org.bukkit.plugin.Plugin;
 
 /**
- * Работа с Dynmap Marker API (через кешированную рефлексию, чтобы не тянуть Dynmap в зависимости сборки).
- * Маркер обновляется только если у него реально поменялись подпись, мир, координаты или описание.
+ * Dynmap Marker API access (through cached reflection, so Dynmap is not a build dependency).
+ * A marker is only updated when its label, world, position or description really changed.
  */
 final class DynmapMarkers {
     static final String SET_ID = "create_railways";
@@ -43,7 +43,7 @@ final class DynmapMarkers {
         return new DynmapMarkers(api, set);
     }
 
-    /** После /dynmap reload API и набор маркеров пересоздаются — тогда нужно подключиться заново. */
+    /** After /dynmap reload the API and the marker set are recreated, so we have to reconnect. */
     boolean isCurrent(Plugin dynmap) {
         Object currentApi = Reflect.optionalCall(dynmap, "getMarkerAPI");
         return currentApi == this.api && Reflect.optionalCall(currentApi, "getMarkerSet", SET_ID) == this.set;
@@ -79,7 +79,7 @@ final class DynmapMarkers {
         }
     }
 
-    /** ID всех маркеров набора с заданным префиксом. getMarkers() возвращает Set&lt;Marker&gt;. */
+    /** IDs of all markers in the set with the given prefix. getMarkers() returns Set&lt;Marker&gt;. */
     Set<String> markerIds(String prefix) {
         Set<String> ids = new LinkedHashSet<>();
         Object markers = Reflect.optionalCall(this.set, "getMarkers");
