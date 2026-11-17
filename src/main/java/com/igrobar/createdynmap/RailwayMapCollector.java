@@ -25,7 +25,6 @@ import com.igrobar.createdynmap.web.MapData;
  */
 final class RailwayMapCollector {
     private final CreateRailwaysDynmapBridge plugin;
-    private Class<?> stationClass;
     private String lastSignature;
     private long lastNetworkBuild;
 

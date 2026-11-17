@@ -2,7 +2,7 @@
 
 <img width="160" height="160" alt="Create-Railways-Dynmap-Bridge" src="https://github.com/user-attachments/assets/651b2e3c-9b9c-4a76-9d9e-89bf68ac7e5e" />
 
-# Create Railways Dynmap Bridge
+# Create Railways Dynmap Bridge — Live Train Map
 
 **Live web map and Dynmap markers for Create & Steam 'n' Rails railways**
 
